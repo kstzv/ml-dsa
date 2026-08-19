@@ -1,10 +1,10 @@
 # ML-DSA
 
-An implementation of the Module-Lattice-Based Digital Signature Algorithm (ML-DSA) in C11, based on FIPS 204.
+An implementation of the Module-Lattice-Based Digital Signature Algorithm (ML-DSA) in C11, based on FIPS 204
 
 ## Development status
 
-This project is at an early stage of development. The code is incomplete, untested, and subject to significant changes.
+This project is at an early stage of development. The code is incomplete, untested, and subject to significant changes
 
 It must not be used for cryptographic or production purposes.
 
@@ -17,7 +17,7 @@ The repository currently contains the initial ML-DSA core, including:
 * Barrett and Montgomery reductions;
 * the forward and inverse Number Theoretic Transform (NTT).
 
-Additional algorithm components, platform ports, tests, and the public API will be added during further development.
+Additional algorithm components, platform ports, tests, and the public API will be added during further development
 
 ## License
 
@@ -32,7 +32,7 @@ You may choose either license.
 
 ## 🤝 Contributing
 
-Feedback, reviews, and suggestions are welcome.
+Feedback, reviews, and suggestions are welcome
 
 ---
 
