@@ -18,3 +18,25 @@ The repository currently contains the initial ML-DSA core, including:
 * the forward and inverse Number Theoretic Transform (NTT).
 
 Additional algorithm components, platform ports, tests, and the public API will be added during further development.
+
+## License
+
+This project is dual-licensed under:
+
+- GNU General Public License v2.0
+- MIT License
+
+You may choose either license.
+
+---
+
+## 🤝 Contributing
+
+Feedback, reviews, and suggestions are welcome.
+
+---
+
+## 📬 Contact
+
+- GitHub: https://github.com/kstzv
+- Email: kstzavertaylo@gmail.com
