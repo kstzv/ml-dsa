@@ -36,7 +36,7 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(ml_dsa_level_k k, ml_dsa_level_l l)
 	ctx->s2 = ctx->s1 + l * ML_DSA_N;
 	
 	// Allocation for fields t0 and t1
-	ctx->t0 = ml_dsa_alloc(2 * k * ML_DSA_N);
+	ctx->t0 = ml_dsa_alloc(2 * k * ML_DSA_N * sizeof(s16));
 	if(!ctx->t0) { goto err_3; }
 	ctx->t1 = ctx->t0 + k * ML_DSA_N;
 	
