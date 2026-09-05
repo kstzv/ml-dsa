@@ -18,6 +18,8 @@
 #define ML_DSA_POWER2ROUND_BASE   (1 << ML_DSA_D)
 #define ML_DSA_POWER2ROUND_HALF   (1 << (ML_DSA_D - 1))
 
+#define ML_DSA_SIZE_SCRATCH_BUFFER 1024
+
 // Error code for ML-DSA
 #define ML_DSA_EINVAL                  22
 #define ML_DSA_ENOMEM                  12
@@ -78,12 +80,15 @@ struct ml_dsa_keys {
 	u8 rho[ML_DSA_32_BYTES]; // ρ - seed for Matrix
 	u8 K[ML_DSA_32_BYTES];   // secret signing seed, for create ρ′′
 	u8 tr[ML_DSA_64_BYTES];  // hash pk, for create μ
+	u8 scratch_buffer[ML_DSA_SIZE_SCRATCH_BUFFER];
 	
-	s8 *s1;
-	s8 *s2;
+	s32 *s1;
+	s32 *s2;
 	
-	s16 *t0;
-	s16 *t1;
+	s32 *t0;
+	s32 *t1;
+
+	s32 *matrix_buffer;
 };
 
 // ---------------------------Functions of Barrett Reductions--------------------------------------------------------------------------------
