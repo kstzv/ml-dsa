@@ -18,11 +18,16 @@
 #define ML_DSA_POWER2ROUND_BASE   (1 << ML_DSA_D)
 #define ML_DSA_POWER2ROUND_HALF   (1 << (ML_DSA_D - 1))
 
+#define ML_DSA_44_SIZE_PK 1312
+#define ML_DSA_65_SIZE_PK 1952
+#define ML_DSA_87_SIZE_PK 2592
+
 #define ML_DSA_SIZE_SCRATCH_BUFFER 1024
 
 // Error code for ML-DSA
 #define ML_DSA_EINVAL                  22
 #define ML_DSA_ENOMEM                  12
+#define ML_DSA_EAGAIN          		   11
 #define ML_DSA_SYSTEM_ENTROPY_FAILED   134
 #define ML_DSA_CALLBACK_ENTROPY_FAILED 135
 
@@ -81,15 +86,29 @@ struct ml_dsa_keys {
 	u8 K[ML_DSA_32_BYTES];   // secret signing seed, for create ρ′′
 	u8 tr[ML_DSA_64_BYTES];  // hash pk, for create μ
 	u8 scratch_buffer[ML_DSA_SIZE_SCRATCH_BUFFER];
+	u8 *pk;      
 	
 	s32 *s1;
 	s32 *s2;
 	
 	s32 *t0;
 	s32 *t1;
-
+	
 	s32 *matrix_buffer;
 };
+
+// Internal functions from module create keys
+extern struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_level_l l);
+extern void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx);
+extern int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy);
+extern int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t);
+extern int ml_dsa_create_public_data(struct ml_dsa_keys *ctx);
+
+// Internal function from matrix module
+extern int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result);
+#if defined(ML_DSA_FULL_MATRIX_BUFFER)
+extern int get_full_matrix(struct ml_dsa_keys *ctx);
+#endif
 
 // ---------------------------Functions of Barrett Reductions--------------------------------------------------------------------------------
 // Special constants for Barrett reduction in ML-DSA.
