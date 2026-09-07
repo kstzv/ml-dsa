@@ -201,7 +201,7 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 	
 	return 0;
 }
-
+// Split t into high and low parts: t = t1 * 2^13 + t0
 int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t)
 {
 	if(!ctx || !t || !ctx->t0 || !ctx->t1) { return ML_DSA_EINVAL; }
@@ -222,7 +222,8 @@ int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t)
 	
 	return 0;
 }
-	
+
+// Encode public key as rho || t1 and compute tr = SHAKE256(pk, 64)
 int ml_dsa_create_public_data(struct ml_dsa_keys *ctx)
 {
     if (!ctx || !ctx->t1) { return ML_DSA_EINVAL; }
@@ -240,7 +241,8 @@ int ml_dsa_create_public_data(struct ml_dsa_keys *ctx)
 
     return 0;
 }	
-	
+
+// Pack four 10-bit t1 coefficients into five bytes
 static inline void ml_dsa_pack_t1(u8 *out, const s32 *t)
 {
     for (size_t i = 0; i < ML_DSA_N / 4; i++) 
