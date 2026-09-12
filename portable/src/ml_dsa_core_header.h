@@ -77,6 +77,14 @@ enum ml_dsa_level_l {
 	ML_DSA_87_L = 7,
 };
 
+struct ml_dsa_ctx {
+	u8 *messege;
+	size_t len_messege;
+	u8 deterministic;
+	size_t size_mark;
+	u8 *mark;
+};
+
 // Struct for save keys parametrs
 struct ml_dsa_keys {
 	enum ml_dsa_level_k k;   // level k sequrity for key
@@ -95,6 +103,8 @@ struct ml_dsa_keys {
 	s32 *t1;
 	
 	s32 *matrix_buffer;
+
+	struct ml_dsa_ctx ctx;
 };
 
 // Internal functions from module create keys
