@@ -31,6 +31,41 @@
 #define ML_DSA_SYSTEM_ENTROPY_FAILED   134
 #define ML_DSA_CALLBACK_ENTROPY_FAILED 135
 
+// Selecting the message buffer memory type
+#define ML_DSA_MEM_BUFFER  1
+#define ML_DSA_MEM_HYBRID  2
+#define ML_DSA_MEM_ALLOC   3
+
+#ifndef ML_DSA_MEM_MODE
+#error "ML_DSA_MEM_MODE must be defined"
+#endif
+
+#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
+
+#ifndef ML_DSA_BUFFER_SIZE
+#error "ML_DSA_BUFFER_SIZE must be defined for BUFFER or HYBRID mode"
+#endif
+
+#if ML_DSA_BUFFER_SIZE == 0
+#error "ML_DSA_BUFFER_SIZE must be greater than 0"
+#endif
+
+#endif
+
+// for SIMD-frendly
+#ifndef ML_DSA_SIMD
+#error "ML_DSA_SIMD must be defined"
+#endif
+
+#if ML_DSA_SIMD == 1
+#define ML_DSA_SIZE_MEM_KECCAK 25
+#elif ML_DSA_SIMD == 2
+#define ML_DSA_SIZE_MEM_KECCAK 50
+#elif ML_DSA_SIMD == 4
+#define ML_DSA_SIZE_MEM_KECCAK 100
+#else "You need to specify 1, 2, or 4 for SIMD"
+#endif
+
 // HEADERS
 #if defined(USERSPACE)
 
@@ -77,12 +112,15 @@ enum ml_dsa_level_l {
 	ML_DSA_87_L = 7,
 };
 
-struct ml_dsa_ctx {
-	u8 *messege;
-	size_t len_messege;
+struct ml_dsa_workspace {
+	s32 *matrix_buffer;
 	u8 deterministic;
-	size_t size_mark;
+	u8 *messege;
 	u8 *mark;
+	u8 *scratch_buffer; // [ML_DSA_SIZE_SCRATCH_BUFFER];
+	u64 *keccak_buffer;
+	size_t len_messege;
+	size_t size_mark;
 };
 
 // Struct for save keys parametrs
@@ -93,18 +131,15 @@ struct ml_dsa_keys {
 	u8 rho[ML_DSA_32_BYTES]; // ρ - seed for Matrix
 	u8 K[ML_DSA_32_BYTES];   // secret signing seed, for create ρ′′
 	u8 tr[ML_DSA_64_BYTES];  // hash pk, for create μ
-	u8 scratch_buffer[ML_DSA_SIZE_SCRATCH_BUFFER];
-	u8 *pk;      
+	u8 *pk;      			 // messege pk
 	
-	s32 *s1;
+	s32 *s1;                 
 	s32 *s2;
 	
 	s32 *t0;
 	s32 *t1;
 	
-	s32 *matrix_buffer;
-
-	struct ml_dsa_ctx ctx;
+	struct ml_dsa_workspace workspace; // Data processing structure
 };
 
 // Internal functions from module create keys
