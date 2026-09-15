@@ -26,26 +26,31 @@ int get_full_matrix(struct ml_dsa_keys *ctx)
 		{
 			curr_seed[32] = j;
 			curr_seed[33] = i;
-			ml_dsa_shake128(ctx->scratch_buffer, 894, curr_seed, ML_DSA_32_BYTES + 2);
+			shake_ctx_zero(ctx->workspace->shake);
+			shake_ctx_init(ctx->workspace->shake, ctx->workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER, curr_seed, ML_DSA_32_BYTES + 2);
+			shake128(ctx->workspace->shake);
 			
 			s32 *poly = ctx->matrix_buffer + ((i * ctx->l + j) * ML_DSA_N);
 			
 			// Rejection-sample 23-bit values below q
 			size_t counter_in = 0;
             size_t counter_out = 0;
-			while(counter_in < ML_DSA_N && counter_out + 2 < 894)
+			while(counter_in < ML_DSA_N)
 			{
+				if(counter_out == ML_DSA_SIZE_SCRATCH_BUFFER) { shake128(ctx->workspace->shake); counter_out = 0; }
 				u8 a = ctx->scratch_buffer[counter_out++];
+				if(counter_out == ML_DSA_SIZE_SCRATCH_BUFFER) { shake128(ctx->workspace->shake); counter_out = 0; }
                 u8 b = ctx->scratch_buffer[counter_out++];
+                if(counter_out == ML_DSA_SIZE_SCRATCH_BUFFER) { shake128(ctx->workspace->shake); counter_out = 0; }
                 u8 c = ctx->scratch_buffer[counter_out++];
 				s32 z = a | ((s32)b << 8) | ((s32)(c & 0x7F) << 16);
 				
 				if(z < ML_DSA_Q)
 				{
 					poly[counter_in++] = z;
-				}
+				}	
+					
 			}
-			if (counter_in != ML_DSA_N) { return ML_DSA_EAGAIN; }
 		}
 	}
 	return 0;
@@ -94,17 +99,22 @@ int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result)
 			const s32 *poly_v = vect + j * ML_DSA_N;
 			curr_seed[32] = (u8)j;
 			curr_seed[33] = (u8)i;
-			ml_dsa_shake128(ctx->scratch_buffer, 894, curr_seed, ML_DSA_32_BYTES + 2);
+			shake_ctx_zero(ctx->workspace->shake);
+			shake_ctx_init(ctx->workspace->shake, ctx->workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER, curr_seed, ML_DSA_32_BYTES + 2);
+			shake128(ctx->workspace->shake);
 			
 			// Rejection-sample matrix coefficients and consume them immediately in the pointwise product
 			size_t counter_in = 0;
             size_t counter_out = 0;
-            while(counter_in < ML_DSA_N && counter_out + 2 < 894)
+            while(counter_in < ML_DSA_N)
             {
-				u8 a = ctx->scratch_buffer[counter_out++];
-                u8 b = ctx->scratch_buffer[counter_out++];
-                u8 c = ctx->scratch_buffer[counter_out++];
-				s32 z = a | ((s32)b << 8) | ((s32)(c & 0x7F) << 16);
+				if(counter_out == ML_DSA_SIZE_SCRATCH_BUFFER) { shake128(ctx->workspace->shake); counter_out = 0; }
+				u8 a = ctx->scratch_buffer[counter_out++]; 
+				if(counter_out == ML_DSA_SIZE_SCRATCH_BUFFER) { shake128(ctx->workspace->shake); counter_out = 0; }
+                u8 b = ctx->scratch_buffer[counter_out++]; 
+                if(counter_out == ML_DSA_SIZE_SCRATCH_BUFFER) { shake128(ctx->workspace->shake); counter_out = 0; }
+                u8 c = ctx->scratch_buffer[counter_out++]; 
+                s32 z = a | ((s32)b << 8) | ((s32)(c & 0x7F) << 16);
 				
 				if(z < ML_DSA_Q)
 				{
@@ -112,7 +122,6 @@ int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result)
 					counter_in++;
 				}
 			}
-			if (counter_in != ML_DSA_N) { return ML_DSA_EAGAIN; }
 		}
 	}
 	return 0;
