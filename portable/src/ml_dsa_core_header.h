@@ -50,6 +50,15 @@
 #error "ML_DSA_BUFFER_SIZE must be greater than 0"
 #endif
 
+#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
+
+#ifdef ML_DSA_BUFFER_SIZE
+#undef ML_DSA_BUFFER_SIZE
+#endif
+#define ML_DSA_BUFFER_SIZE 0
+
+#else
+#error "Invalid ML_DSA_MEM_MODE"
 #endif
 
 // for SIMD-frendly
@@ -57,13 +66,21 @@
 #error "ML_DSA_SIMD must be defined"
 #endif
 
+#define ML_DSA_SIZE_KECCAK_SIMD_1 25
+#define ML_DSA_SIZE_KECCAK_SIMD_2 50
+#define ML_DSA_SIZE_KECCAK_SIMD_4 100
+
 #if ML_DSA_SIMD == 1
-#define ML_DSA_SIZE_MEM_KECCAK 25
+#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_1
+#include "shake.h"
 #elif ML_DSA_SIMD == 2
-#define ML_DSA_SIZE_MEM_KECCAK 50
+#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_2
+#include "shake_x2.h"
 #elif ML_DSA_SIMD == 4
-#define ML_DSA_SIZE_MEM_KECCAK 100
-#else "You need to specify 1, 2, or 4 for SIMD"
+#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_4
+#include "shake_x4.h"
+#else 
+#error "You need to specify 1, 2, or 4 for SIMD"
 #endif
 
 // HEADERS
@@ -118,7 +135,7 @@ struct ml_dsa_workspace {
 	u8 *messege;
 	u8 *mark;
 	u8 *scratch_buffer; // [ML_DSA_SIZE_SCRATCH_BUFFER];
-	u64 *keccak_buffer;
+	struct shake_ctx *shake;
 	size_t len_messege;
 	size_t size_mark;
 };
@@ -139,8 +156,11 @@ struct ml_dsa_keys {
 	s32 *t0;
 	s32 *t1;
 	
-	struct ml_dsa_workspace workspace; // Data processing structure
+	struct ml_dsa_workspace *workspace; // Data processing structure
 };
+
+
+	
 
 // Internal functions from module create keys
 extern struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_level_l l);
