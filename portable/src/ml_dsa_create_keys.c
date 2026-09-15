@@ -10,12 +10,13 @@ int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t);
 static inline void ml_dsa_pack_t1(u8 *out, const s32 *t);
 	
 // Memory allocation for the key structure and all its fields
-struct ml_dsa_keys *ml_dsa_alloc_struct_keys(ml_dsa_level_k k, ml_dsa_level_l l)
+struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_level_l l)
 {
 	// Memory allocation for key structure
 	struct ml_dsa_keys *ctx;
 	ctx = ml_dsa_alloc(sizeof(struct ml_dsa_keys));
 	if(!ctx) { goto err_1; }
+	ml_dsa_memzero(ctx, sizeof(struct ml_dsa_keys));
 	
 	ctx->k = k;
 	ctx->l = l;
@@ -39,21 +40,54 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(ml_dsa_level_k k, ml_dsa_level_l l)
 	if(!ctx->t0) { goto err_4; }
 	ctx->t1 = ctx->t0 + k * ML_DSA_N;
 	
+	ctx->workspace = ml_dsa_alloc(sizeof(struct ml_dsa_workspace));
+	if(!ctx->workspace) { goto err_5; }
+	
 	// Allocations buffer for matrix
 	#if defined(ML_DSA_FULL_MATRIX_BUFFER)
 	
-	ctx->matrix_buffer = ml_dsa_alloc(l * k * ML_DSA_N * sizeof(s32));
-	if(!ctx->matrix_buffer) { goto err_5; }
+	ctx->workspace->matrix_buffer = ml_dsa_alloc(l * k * ML_DSA_N * sizeof(s32));
+	if(!ctx->workspace->matrix_buffer) { goto err_6; }
 	
 	#else
 	
-	ctx->matrix_buffer = ml_dsa_alloc(ML_DSA_N * sizeof(s32));
-	if(!ctx->matrix_buffer) { goto err_5; }
+	ctx->workspace->matrix_buffer = ml_dsa_alloc(ML_DSA_N * sizeof(s32));
+	if(!ctx->workspace->matrix_buffer) { goto err_6; }
 	
 	#endif
 	
+	size_t size_u8 = 0;
+	size_u8 += ML_DSA_SIZE_SCRATCH_BUFFER; // buffer for shakes
+	size_u8 += 255;                        // buffer for marks
+	if(ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC)// buffer for messege
+	{
+		size_u8++;
+	}else
+	{
+		size_u8 += ML_DSA_BUFFER_SIZE;
+	}
+	ctx->workspace->messege = ml_dsa_alloc(size_u8);
+	if(!ctx->workspace->messege) { goto err_7; }
+	ctx->workspace->mark = ctx->workspace->messege + ML_DSA_BUFFER_SIZE;
+	ctx->workspace->scratch_buffer = ctx->workspace->mark + 255;
+	
+	ctx->workspace->shake = ml_dsa_alloc(sizeof(struct shake_ctx));
+	if(!ctx->workspace->shake) { goto err_8; }
+	
+	u64 *temp_mem_keccak = ml_dsa_alloc(ML_DSA_SIZE_MEM_KECCAK * sizeof(u64));
+	if(shake_ctx_get_mem(ctx->workspace->shake, temp_mem_keccak, ML_DSA_SIZE_MEM_KECCAK) != 0) { goto err_9; }
+	shake_ctx_zero(ctx->workspace->shake);
+	
 	return ctx;
 	
+	err_9:
+		ml_dsa_free(ctx->workspace->shake);
+	err_8:
+		ml_dsa_free(ctx->workspace->messege);
+	err_7:
+		ml_dsa_free(ctx->workspace->matrix_buffer);
+	err_6:
+		ml_dsa_free(ctx->workspace);
 	err_5:
 		ml_dsa_free(ctx->t0);
 	err_4:
@@ -85,14 +119,30 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 	
 	if(ctx->pk) { ml_dsa_free(ctx->pk); }
 	
-	if(ctx->matrix_buffer) 
+	if(ctx->workspace && ctx->workspace->matrix_buffer) 
 	{
 		#if defined(ML_DSA_FULL_MATRIX_BUFFER)
-		ml_dsa_memzero(ctx->matrix_buffer,l * k * ML_DSA_N * sizeof(s32));
+		ml_dsa_memzero(ctx->workspace->matrix_buffer, ctx->l * ctx->k * ML_DSA_N * sizeof(s32));
 		#else
-		ml_dsa_memzero(ctx->matrix_buffer,ML_DSA_N * sizeof(s32));
+		ml_dsa_memzero(ctx->workspace->matrix_buffer, ML_DSA_N * sizeof(s32));
 		#endif
-		ml_dsa_free(ctx->matrix_buffer);
+		ml_dsa_free(ctx->workspace->matrix_buffer);
+	}
+	
+	if(ctx->workspace && ctx->workspace->messege)
+	{
+		ml_dsa_memzero(ctx->workspace->messege, 255 + ML_DSA_SIZE_SCRATCH_BUFFER + ML_DSA_BUFFER_SIZE);
+		ml_dsa_free(ctx->workspace->messege);
+	}
+	
+	if(ctx->workspace && ctx->workspace->shake)
+	{
+		if(ctx->workspace->shake->state)
+		{
+			shake_ctx_zero(ctx->workspace->shake);
+			ml_dsa_free(ctx->workspace->shake->state);
+		}
+		ml_dsa_free(ctx->workspace->shake);
 	}
 		
 	
@@ -100,6 +150,7 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 	 ml_dsa_memzero(ctx->rho, ML_DSA_32_BYTES);
 	 ml_dsa_memzero(ctx->tr, ML_DSA_64_BYTES);
 	 
+	 ml_dsa_free(ctx->workspace);
 	 ml_dsa_free(ctx); 
 }
 
@@ -124,7 +175,9 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 	first_seed[33] = ctx->l;
 	
 	// Get and write in struct K and ρ parameters
-	ml_dsa_shake256(out_first_seed, ML_DSA_32_BYTES * 2 + ML_DSA_64_BYTES, first_seed, ML_DSA_32_BYTES + 2);
+	shake_ctx_init(ctx->workspace->shake, out_first_seed, ML_DSA_32_BYTES * 2 + ML_DSA_64_BYTES, first_seed, ML_DSA_32_BYTES + 2);
+	shake256(ctx->workspace->shake);
+	shake_ctx_zero(ctx->workspace->shake);
 	memcpy(ctx->rho, out_first_seed, ML_DSA_32_BYTES);
 	memcpy(ctx->K, out_first_seed + ML_DSA_32_BYTES + ML_DSA_64_BYTES, ML_DSA_32_BYTES);
 	
@@ -137,7 +190,6 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 	// And introducing a buffer of 384 bytes, with the aim of a high 
 	// Probability of obtaining the necessary bytes for one polynomial at a time
 	u8 limit;
-	u8 buffer_shake[384];
 	if(ctx->eta == ML_DSA_44_87_ETA) { limit = 15; }
 	else { limit = 9; }
 	
@@ -146,7 +198,10 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 	{
 		// Gets bytes from SHAKE256
 		s1_s2_seed[64] = i;
-		ml_dsa_shake256(buffer_shake, 384, s1_s2_seed, ML_DSA_64_BYTES + 2);
+		
+		shake_ctx_zero(ctx->workspace->shake);
+		shake_ctx_init(ctx->workspace->shake, ctx->workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER, s1_s2_seed, ML_DSA_64_BYTES + 2);
+		shake256(ctx->workspace->shake);
 		
 		// Set pointer
 		s32 *ptr;
@@ -161,8 +216,8 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 		{
 			u8 val_0;
 			u8 val_1;
-			val_0 = buffer_shake[count_buff] & 0x0F;
-			val_1 = buffer_shake[count_buff] >> 4;
+			val_0 = ctx->workspace->scratch_buffer[count_buff] & 0x0F;
+			val_1 = ctx->workspace->scratch_buffer[count_buff] >> 4;
 			
 			if(ctx->eta == ML_DSA_44_87_ETA && val_0 < limit)
 			{
@@ -189,7 +244,11 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 			}
 			
 			count_buff++;
-			if(count_buff >= 384) { return ML_DSA_EAGAIN; }
+			if(count_buff >= ML_DSA_SIZE_SCRATCH_BUFFER) 
+			{ 
+				shake256(ctx->workspace->shake); 
+				count_buff = 0; 
+			}
 		}
 	}
 	
@@ -197,11 +256,10 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 	ml_dsa_memzero(first_seed, ML_DSA_32_BYTES + 2);
 	ml_dsa_memzero(out_first_seed, ML_DSA_32_BYTES * 2 + ML_DSA_64_BYTES);
 	ml_dsa_memzero(s1_s2_seed, ML_DSA_64_BYTES + 2);
-	ml_dsa_memzero(buffer_shake, 384);
 	
 	return 0;
 }
-// Split t into high and low parts: t = t1 * 2^13 + t0
+
 int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t)
 {
 	if(!ctx || !t || !ctx->t0 || !ctx->t1) { return ML_DSA_EINVAL; }
@@ -222,8 +280,7 @@ int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t)
 	
 	return 0;
 }
-
-// Encode public key as rho || t1 and compute tr = SHAKE256(pk, 64)
+	
 int ml_dsa_create_public_data(struct ml_dsa_keys *ctx)
 {
     if (!ctx || !ctx->t1) { return ML_DSA_EINVAL; }
@@ -236,13 +293,14 @@ int ml_dsa_create_public_data(struct ml_dsa_keys *ctx)
         ml_dsa_pack_t1(out, ctx->t1 + j * ML_DSA_N);
         out += 320;
     }
-
-    ml_dsa_shake256(ctx->tr, ML_DSA_64_BYTES, ctx->pk, ML_DSA_32_BYTES + ctx->k * 320);
+    
+    shake_ctx_zero(ctx->workspace->shake);
+	shake_ctx_init(ctx->workspace->shake, ctx->tr, ML_DSA_64_BYTES, ctx->pk, ML_DSA_32_BYTES + ctx->k * 320);
+	shake256(ctx->workspace->shake);
 
     return 0;
 }	
-
-// Pack four 10-bit t1 coefficients into five bytes
+	
 static inline void ml_dsa_pack_t1(u8 *out, const s32 *t)
 {
     for (size_t i = 0; i < ML_DSA_N / 4; i++) 
