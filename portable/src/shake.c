@@ -1,5 +1,9 @@
 #include "shake.h"
 
+static void shake_absorb(struct shake_ctx *ctx);
+static void shake_finalize(struct shake_ctx *ctx);
+static void shake_squeeze(struct shake_ctx *ctx);
+
 int shake_ctx_get_mem(struct shake_ctx *ctx, uint64_t *state, size_t size_mem)
 {
 	if(!ctx || !state || size_mem != 25) { return -1; }
