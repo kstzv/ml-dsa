@@ -22,10 +22,6 @@ void shake_ctx_zero(struct shake_ctx *ctx);
 void shake128(struct shake_ctx *ctx);
 void shake256(struct shake_ctx *ctx);
 
-void shake_absorb(struct shake_ctx *ctx);
-void shake_finalize(struct shake_ctx *ctx);
-void shake_squeeze(struct shake_ctx *ctx);
-
 void keccak_f1600(uint64_t s[25]);
 
 #endif
