@@ -131,10 +131,11 @@ enum ml_dsa_level_l {
 
 struct ml_dsa_workspace {
 	s32 *matrix_buffer;
+	s32 *temp_vector_buffer;
 	u8 deterministic;
-	u8 *messege;
 	u8 *mark;
 	u8 *scratch_buffer; // [ML_DSA_SIZE_SCRATCH_BUFFER];
+	u8 *messege;
 	struct shake_ctx *shake;
 	size_t len_messege;
 	size_t size_mark;
