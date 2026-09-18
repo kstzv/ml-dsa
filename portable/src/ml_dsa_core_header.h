@@ -27,6 +27,7 @@
 #define ML_DSA_87_SIZE_PK 2592
 
 #define ML_DSA_SIZE_SCRATCH_BUFFER 1024
+#define ML_DSA_SIZE_MAX_CONTEXT    255
 
 // Error code for ML-DSA
 #define ML_DSA_EINVAL                  22
