@@ -28,6 +28,7 @@
 
 #define ML_DSA_SIZE_SCRATCH_BUFFER 1024
 #define ML_DSA_SIZE_MAX_CONTEXT    255
+#define ML_DSA_PREHASH_OID_SIZE    11
 
 // Error code for ML-DSA
 #define ML_DSA_EINVAL                  22
@@ -64,6 +65,16 @@
 
 #else
 #error "Invalid ML_DSA_MEM_MODE"
+#endif
+
+#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
+
+#define ML_DSA_MAX_SIZE_FOR_FORMAT_M (ML_DSA_64_BYTES + 2 + ML_DSA_SIZE_MAX_CONTEXT + ML_DSA_PREHASH_OID_SIZE + ML_DSA_BUFFER_SIZE)
+
+#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
+
+#define ML_DSA_MAX_SIZE_FOR_FORMAT_M 0
+
 #endif
 
 // for SIMD-frendly
@@ -138,12 +149,12 @@ struct ml_dsa_workspace {
 	s32 *matrix_buffer;
 	s32 *temp_vector_buffer;
 	u8 deterministic;
-	u8 *mark;
+	u8 rho_double_prime[ML_DSA_64_BYTES];
+	u8 mu[ML_DSA_64_BYTES];
 	u8 *scratch_buffer; // [ML_DSA_SIZE_SCRATCH_BUFFER];
 	u8 *messege;
 	struct shake_ctx *shake;
 	size_t len_messege;
-	size_t size_mark;
 };
 
 // Struct for save keys parametrs
@@ -180,6 +191,8 @@ extern int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result);
 #if defined(ML_DSA_FULL_MATRIX_BUFFER)
 extern int get_full_matrix(struct ml_dsa_keys *ctx);
 #endif
+
+extern void get_mu(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, const uint8_t *context, size_t context_len, u8 prehash);
 
 // ---------------------------Functions of Barrett Reductions--------------------------------------------------------------------------------
 // Special constants for Barrett reduction in ML-DSA.
