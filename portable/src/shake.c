@@ -111,8 +111,11 @@ static void shake_finalize(struct shake_ctx *ctx)
 static void shake_squeeze(struct shake_ctx *ctx)
 {
     uint8_t *s = (uint8_t *)ctx->state;
+    
+    size_t local_outlen = ctx->outlen;
+    uint8_t *local_ptr_out = ctx->out;
 
-    while (ctx->outlen > 0)
+    while (local_outlen > 0)
     {
         if (ctx->pos == ctx->rate)
         {
@@ -122,13 +125,13 @@ static void shake_squeeze(struct shake_ctx *ctx)
 
         size_t n = ctx->rate - ctx->pos;
 
-        if (n > ctx->outlen) { n = ctx->outlen; }
+        if (n > local_outlen) { n = local_outlen; }
 
-        for (size_t i = 0; i < n; i++) { ctx->out[i] = s[ctx->pos + i]; }
+        for (size_t i = 0; i < n; i++) { local_ptr_out[i] = s[ctx->pos + i]; }
 
         ctx->pos += n;
-        ctx->out += n;
-        ctx->outlen -= n;
+        local_ptr_out += n;
+        local_outlen -= n;
     }
 }
 
