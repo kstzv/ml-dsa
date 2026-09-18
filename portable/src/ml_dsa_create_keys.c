@@ -65,13 +65,14 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	
 	size_t size_u8 = 0;
 	size_u8 += ML_DSA_SIZE_SCRATCH_BUFFER; // buffer for shakes
-	size_u8 += 255;                        // buffer for marks
-	// buffer for messege
-	if(ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID) { size_u8 += ML_DSA_BUFFER_SIZE; } 
+	// buffer for format messege
+	if(ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID) 
+	{ 
+		size_u8 += ML_DSA_MAX_SIZE_FOR_FORMAT_M;
+	} 
 	
-	ctx->workspace->mark = ml_dsa_alloc(size_u8);
-	if(!ctx->workspace->mark) { goto err_7; }
-	ctx->workspace->scratch_buffer = ctx->workspace->mark + 255;
+	ctx->workspace->scratch_buffer = ml_dsa_alloc(size_u8);
+	if(!ctx->workspace->scratch_buffer) { goto err_7; }
 	if(ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID)
 	{
 		ctx->workspace->messege = ctx->workspace->scratch_buffer + ML_DSA_SIZE_SCRATCH_BUFFER;
@@ -92,7 +93,7 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	err_9:
 		ml_dsa_free(ctx->workspace->shake);
 	err_8:
-		ml_dsa_free(ctx->workspace->mark);
+		ml_dsa_free(ctx->workspace->scratch_buffer);
 	err_7:
 		if(ctx->workspace->matrix_buffer) { ml_dsa_free(ctx->workspace->matrix_buffer); }
 		else { ml_dsa_free(ctx->workspace->temp_vector_buffer); }
@@ -143,13 +144,12 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 		ml_dsa_free(ctx->workspace->temp_vector_buffer);
 	}
 	
-	if(ctx->workspace && ctx->workspace->mark)
+	if(ctx->workspace && ctx->workspace->scratch_buffer)
 	{
-		size_t size_zero = 0;
-		size_zero = 255 + ML_DSA_SIZE_SCRATCH_BUFFER;
-		if(ctx->workspace->messege != NULL) { size_zero += ML_DSA_BUFFER_SIZE; }
-		ml_dsa_memzero(ctx->workspace->mark, size_zero);
-		ml_dsa_free(ctx->workspace->mark);
+		size_t size_zero = ML_DSA_SIZE_SCRATCH_BUFFER;
+		if(ctx->workspace->messege != NULL) { size_zero += ML_DSA_MAX_SIZE_FOR_FORMAT_M; }
+		ml_dsa_memzero(ctx->workspace->scratch_buffer, size_zero);
+		ml_dsa_free(ctx->workspace->scratch_buffer);
 	}
 	
 	if(ctx->workspace && ctx->workspace->shake)
@@ -333,19 +333,4 @@ static inline void ml_dsa_pack_t1(u8 *out, const s32 *t)
         out[5*i + 3] = (u8)((t2 >> 4) | (t3 << 6));
         out[5*i + 4] = (u8)(t3 >> 2);
     }
-}	
-	
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
+}
