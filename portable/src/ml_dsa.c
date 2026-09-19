@@ -122,32 +122,16 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	
 	// Create mu
 	get_mu(ctx, msg, msg_len, context, context_len, prehash);
+	int ret = get_rho_double_prime(ctx, deterministic, entropy);
+	if(ret != 0) { return ret; }
 	
-	// Copy K in first 32 bytes
-	memcpy(ctx->workspace->scratch_buffer, ctx->K, ML_DSA_32_BYTES);
-	
-	// Get next 32 zeroies or random bytes
-	if (deterministic == 1) { ml_dsa_memzero(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES); }
-	else if(entropy == NULL)
-	{
-		if (ml_dsa_entropy(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES) != 0) { return ML_DSA_SYSTEM_ENTROPY_FAILED; }
-	}else
-	{
-		if (entropy(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES) != 0) { return ML_DSA_CALLBACK_ENTROPY_FAILED; }
-	}
-	
-	// Copy finish 64 mu bytes
-	memcpy(ctx->workspace->scratch_buffer + ML_DSA_64_BYTES, ctx->workspace->mu, ML_DSA_64_BYTES);
-	
-	// Get rho``
-	shake_ctx_zero(ctx->workspace->shake);
-	shake_ctx_init(ctx->workspace->shake, ctx->workspace->rho_double_prime, ML_DSA_64_BYTES, ctx->workspace->scratch_buffer, ML_DSA_64_BYTES * 2);
-	shake256(ctx->workspace->shake);
-	ml_dsa_memzero(ctx->workspace->scratch_buffer, ML_DSA_64_BYTES * 2);
 	
 	u32 kappa = 0;
-	
-	// TODO: далі буде, я тільки поки що отримав мю.....
+	u16 counter = 0;
+	while(counter <= 814)
+	{
+		ml_dsa_expand_mask(ctx, ctx->workspace->temp_vector_buffer, kappa);
+		
 	
 	
 	
