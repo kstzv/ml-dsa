@@ -18,6 +18,15 @@
 #define ML_DSA_POWER2ROUND_BASE   (1 << ML_DSA_D)
 #define ML_DSA_POWER2ROUND_HALF   (1 << (ML_DSA_D - 1))
 
+#define ML_DSA_44_GAMMA1          (1U << 17)
+#define ML_DSA_65_87_GAMMA1       (1U << 19)
+
+#define ML_DSA_44_GAMMA1_BITS         18
+#define ML_DSA_65_87_GAMMA1_BITS      20
+
+#define ML_DSA_44_POLYZ_PACKED_BYTES    576
+#define ML_DSA_65_87_POLYZ_PACKED_BYTES 640
+
 #define ML_DSA_44_SIZE_SIG 2420
 #define ML_DSA_65_SIZE_SIG 3309
 #define ML_DSA_87_SIZE_SIG 4627
