@@ -49,17 +49,30 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	
 	size_t size_s32 = l * k * ML_DSA_N * sizeof(s32); // For matrix
 	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For temp vector
+	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For w vector
+	size_s32 += l * ML_DSA_N * sizeof(s32); 		  // For y vector
+	size_s32 += ML_DSA_N * sizeof(s32); 		  	  // For c poly
 	ctx->workspace->matrix_buffer = ml_dsa_alloc(size_s32);
 	if(!ctx->workspace->matrix_buffer) { goto err_6; }
 	ctx->workspace->temp_vector_buffer = ctx->workspace->matrix_buffer + (l * k * ML_DSA_N);
+	ctx->workspace->vect_w = ctx->workspace->temp_vector_buffer + (k * ML_DSA_N);
+	ctx->workspace->vect_y = ctx->workspace->vect_w + (k * ML_DSA_N);
+	ctx->workspace->poly_c = ctx->workspace->vect_y + (l * ML_DSA_N);
 	ml_dsa_memzero(ctx->workspace->matrix_buffer, size_s32);
 	
 	#else
 	
+	size_t size_s32 += k * ML_DSA_N * sizeof(s32); 	  // For temp vector
+	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For w vector
+	size_s32 += l * ML_DSA_N * sizeof(s32); 		  // For y vector
+	size_s32 += ML_DSA_N * sizeof(s32); 		  	  // For c poly
 	ctx->workspace->matrix_buffer = NULL;
-	ctx->workspace->temp_vector_buffer = ml_dsa_alloc(k * ML_DSA_N * sizeof(s32));
+	ctx->workspace->temp_vector_buffer = ml_dsa_alloc(size_s32);
 	if(!ctx->workspace->temp_vector_buffer) { goto err_6; }
-	ml_dsa_memzero(ctx->workspace->temp_vector_buffer, k * ML_DSA_N * sizeof(s32));
+	ctx->workspace->vect_w = ctx->workspace->temp_vector_buffer + (k * ML_DSA_N);
+	ctx->workspace->vect_y = ctx->workspace->vect_w + (k * ML_DSA_N);
+	ctx->workspace->poly_c = ctx->workspace->vect_y + (l * ML_DSA_N);
+	ml_dsa_memzero(ctx->workspace->temp_vector_buffer, size_s32);
 	
 	#endif
 	
@@ -132,15 +145,23 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 	
 	if(ctx->workspace && ctx->workspace->matrix_buffer)
 	{
-		ml_dsa_memzero(ctx->workspace->matrix_buffer, ctx->l * ctx->k * ML_DSA_N * sizeof(s32));
-		ml_dsa_memzero(ctx->workspace->temp_vector_buffer, ctx->k * ML_DSA_N * sizeof(s32));
+		size_t size_s32 = ctx->l * ctx->k * ML_DSA_N * sizeof(s32); 
+		size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		  
+		size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		 
+		size_s32 += ctx->l * ML_DSA_N * sizeof(s32); 		 
+		size_s32 += ML_DSA_N * sizeof(s32); 		  	  
+		ml_dsa_memzero(ctx->workspace->matrix_buffer, size_s32);
 		ml_dsa_free(ctx->workspace->matrix_buffer);
 		ctx->workspace->temp_vector_buffer = NULL;
 	}
 	
 	if(ctx->workspace && ctx->workspace->temp_vector_buffer)
 	{
-		ml_dsa_memzero(ctx->workspace->temp_vector_buffer, ctx->k * ML_DSA_N * sizeof(s32));
+		size_t size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		  
+		size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		 
+		size_s32 += ctx->l * ML_DSA_N * sizeof(s32); 		 
+		size_s32 += ML_DSA_N * sizeof(s32); 		
+		ml_dsa_memzero(ctx->workspace->temp_vector_buffer, size_s32);
 		ml_dsa_free(ctx->workspace->temp_vector_buffer);
 	}
 	
