@@ -4,6 +4,8 @@ static const uint8_t oid_shake256[11] = {
     0x65, 0x03, 0x04, 0x02, 0x0C
 };
 
+static inline void ml_dsa_decompose(s32 r, s32 gamma2, s32 *r1, s32 *r0);
+
 void get_mu(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, const uint8_t *context, size_t context_len, u8 prehash)
 {
 	u8 *temp_ptr = ctx->workspace->messege;
@@ -126,6 +128,27 @@ void ml_dsa_expand_mask(struct ml_dsa_keys *ctx, s32 *y, u32 kappa)
             y[(size_t)r * ML_DSA_N + i] = (s32)gamma1 - (s32)value;
 		}
 	}
+}
+
+static inline void ml_dsa_decompose(s32 r, s32 gamma2, s32 *r1, s32 *r0)
+{
+    s32 high = (r + 127) >> 7;
+
+    if (gamma2 == ML_DSA_65_87_GAMMA2) 
+    {
+        high = (high * 1025 + (1 << 21)) >> 22;
+        high &= 15;
+    } else 
+    {
+        high = (high * 11275 + (1 << 23)) >> 24;
+        high ^= ((43 - high) >> 31) & high;
+    }
+
+    s32 low = r - high * 2 * gamma2;
+    low -= ((ML_DSA_Q_HALF_MINUS_ONE - low) >> 31) & ML_DSA_Q;
+
+    *r1 = high;
+    *r0 = low;
 }
 	
 		
