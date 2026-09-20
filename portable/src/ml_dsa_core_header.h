@@ -27,8 +27,9 @@
 #define ML_DSA_44_POLYZ_PACKED_BYTES    576
 #define ML_DSA_65_87_POLYZ_PACKED_BYTES 640
 
-#define ML_DSA_44_GAMMA2    ((ML_DSA_Q - 1) / 88)
-#define ML_DSA_65_87_GAMMA2 ((ML_DSA_Q - 1) / 32)
+#define ML_DSA_44_GAMMA2    	 ((ML_DSA_Q - 1) / 88)
+#define ML_DSA_65_87_GAMMA2 	 ((ML_DSA_Q - 1) / 32)
+#define ML_DSA_Q_HALF_MINUS_ONE  ((ML_DSA_Q - 1) / 2) // 4190208
 
 #define ML_DSA_44_SIZE_SIG 2420
 #define ML_DSA_65_SIZE_SIG 3309
