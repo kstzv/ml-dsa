@@ -157,6 +157,9 @@ enum ml_dsa_level_l {
 struct ml_dsa_workspace {
 	s32 *matrix_buffer;
 	s32 *temp_vector_buffer;
+	s32 *vect_w;
+	s32 *vect_y;
+	s32 *poly_c;
 	u8 deterministic;
 	u8 rho_double_prime[ML_DSA_64_BYTES];
 	u8 mu[ML_DSA_64_BYTES];
