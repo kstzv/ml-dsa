@@ -140,7 +140,19 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	u16 counter = 0;
 	while(counter <= 814)
 	{
-		ml_dsa_expand_mask(ctx, ctx->workspace->temp_vector_buffer, kappa);
+		// Get vector y
+		ml_dsa_expand_mask(ctx, kappa);
+		memcpy(ctx->workspace->temp_vector_buffer, ctx->workspace->vect_y, sizeof(s32) * l * ML_DSA_N);
+		
+		// Get vectors w and w1
+		for(size_t i = 0; i < ctx->l; i++) { ml_dsa_ntt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
+		mult_matrix(ctx, ctx->workspace->temp_vector_buffer, ctx->workspace->vect_w);
+		for(size_t i = 0; i < ctx->k; i++) { ml_dsa_intt(ctx->workspace->vect_w + i * ML_DSA_N); }
+		for(size_t i = 0; i < ctx->k; i++) { ml_dsa_canonicalize(ctx->workspace->vect_w + i * ML_DSA_N); }
+		ml_dsa_get_w1(ctx);
+		
+		u8 c[ML_DSA_64_BYTES];
+		ml_dsa_get_c(ctx, c);
 		
 	
 	
