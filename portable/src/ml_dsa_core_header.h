@@ -319,7 +319,15 @@ static inline void ml_dsa_intt(s32 w[ML_DSA_N])
 	 {
 		 w[i] = ml_dsa_montgomery_reduce(INT64_C(41978) *  (s64)w[i]);
 	 }
- }
+}
+
+static inline void ml_dsa_canonicalize(s32 w[ML_DSA_N])
+{
+    for (size_t i = 0; i < ML_DSA_N; i++)
+    {
+        w[i] += (w[i] >> 31) & ML_DSA_Q;
+    }
+}
 				 
 				 
 
