@@ -32,7 +32,8 @@ struct ml_dsa_keys *ml_dsa_create_keys(u8 level, ml_dsa_entropy_fn entropy)
 	if(ret != 0) { goto err_2; }
 	
 	#endif
-	
+
+	// Here should be copy s1 before NTT(it is can do in vect_y - temp)
 	for (size_t i = 0; i < l; i++) { ml_dsa_ntt(ctx->s1 + i * ML_DSA_N); }
 	
 	ret = mult_matrix(ctx, ctx->s1, ctx->workspace->temp_vector_buffer);
@@ -54,6 +55,15 @@ struct ml_dsa_keys *ml_dsa_create_keys(u8 level, ml_dsa_entropy_fn entropy)
 	
 	ret = ml_dsa_create_public_data(ctx);
 	if(ret != 0) { goto err_2; }
+
+	// Here - create functions for format pk messege and sk messege
+	
+	for (size_t i = 0; i < k; i++) 
+	{ 
+		ml_dsa_ntt(ctx->s2 + i * ML_DSA_N);
+		ml_dsa_ntt(ctx->t0 + i * ML_DSA_N); 
+	}
+	ml_dsa_memzero(ctx->workspace->vect_y, l * ML_DSA_N * sizeof(s32));
 	
 	return ctx;
 		
