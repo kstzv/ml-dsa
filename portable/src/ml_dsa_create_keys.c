@@ -62,7 +62,7 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	
 	#else
 	
-	size_t size_s32 += k * ML_DSA_N * sizeof(s32); 	  // For temp vector
+	size_t size_s32 = k * ML_DSA_N * sizeof(s32); 	  // For temp vector
 	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For w vector
 	size_s32 += l * ML_DSA_N * sizeof(s32); 		  // For y vector
 	size_s32 += ML_DSA_N * sizeof(s32); 		  	  // For c poly
