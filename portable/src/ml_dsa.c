@@ -151,8 +151,10 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 		for(size_t i = 0; i < ctx->k; i++) { ml_dsa_canonicalize(ctx->workspace->vect_w + i * ML_DSA_N); }
 		ml_dsa_get_w1(ctx);
 		
+		// Get polynomial c
 		u8 c[ML_DSA_64_BYTES];
 		ml_dsa_get_c(ctx, c);
+		ml_dsa_get_poly_c(ctx, c);
 		
 	
 	
