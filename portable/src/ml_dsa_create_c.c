@@ -213,6 +213,48 @@ static inline size_t pack_for_c_65_87(struct ml_dsa_keys *ctx)
     }
     return counter_bytes;
 }
+
+void ml_dsa_get_poly_c(struct ml_dsa_keys *ctx, u8 *c)
+{
+	// poly_c must be zeroed before entering SampleInBall
+	
+	// get τ
+	u8 tau, size_c;
+	if(ctx->k == ML_DSA_44_K) { tau = 39; size_c = 32; }
+	else if(ctx->k == ML_DSA_65_K) { tau = 49; size_c = 48; }
+	else if(ctx->k == ML_DSA_87_K) { tau = 60; size_c = 64; }
+	
+	u8 temp_buff[136];
+	shake_ctx_zero(ctx->workspace->shake);
+	shake_ctx_init(ctx->workspace->shake, temp_buff, 136, c, size_c);
+	shake256(ctx);
+	
+	// First 8 bytes contain sign bits
+	u8 bit_sing[8];
+	memcpy(bit_sing, temp_buff, 8);
+	
+	size_t pos = 8;
+
+	for (u16 i = 256 - tau; i < 256; i++)
+	{
+		u8 j;
+		// Rejection sampling: 0 <= j <= i
+        do {
+            if (pos == sizeof(temp_buff)) { shake256(ctx->workspace->shake); pos = 0; }
+            j = temp_buff[pos++];
+        } while (j > i);
+
+		// Fisher-Yates
+		ctx->workspace->poly_c[i] = ctx->workspace->poly_c[j];
+
+		// h[i + tau - 256]
+		u8 h_index = i + tau - 256;
+
+		u8 h = (bit_sing[h_index >> 3] >> (h_index & 7)) & 1;
+
+		ctx->workspace->poly_c[j] = 1 - ((s32)h << 1);
+	}
+}
 	
 		
 	
