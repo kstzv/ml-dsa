@@ -223,7 +223,8 @@ void ml_dsa_get_poly_c(struct ml_dsa_keys *ctx, u8 *c)
 	if(ctx->k == ML_DSA_44_K) { tau = 39; size_c = 32; }
 	else if(ctx->k == ML_DSA_65_K) { tau = 49; size_c = 48; }
 	else if(ctx->k == ML_DSA_87_K) { tau = 60; size_c = 64; }
-	
+
+	// 136 - size of rate in shake256
 	u8 temp_buff[136];
 	shake_ctx_zero(ctx->workspace->shake);
 	shake_ctx_init(ctx->workspace->shake, temp_buff, 136, c, size_c);
