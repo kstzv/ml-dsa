@@ -18,6 +18,10 @@
 #define ML_DSA_POWER2ROUND_BASE   (1 << ML_DSA_D)
 #define ML_DSA_POWER2ROUND_HALF   (1 << (ML_DSA_D - 1))
 
+#define ML_DSA_44_BETA 78
+#define ML_DSA_65_BETA 196
+#define ML_DSA_87_BETA 120
+
 #define ML_DSA_44_GAMMA1          (1U << 17)
 #define ML_DSA_65_87_GAMMA1       (1U << 19)
 
