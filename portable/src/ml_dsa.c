@@ -155,6 +155,7 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 		u8 c[ML_DSA_64_BYTES];
 		ml_dsa_get_c(ctx, c);
 		ml_dsa_get_poly_c(ctx, c);
+		ml_dsa_ntt(ctx->workspace->poly_c);
 		
 	
 	
