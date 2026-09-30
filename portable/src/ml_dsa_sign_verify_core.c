@@ -256,6 +256,113 @@ void ml_dsa_get_poly_c(struct ml_dsa_keys *ctx, u8 *c)
 		ctx->workspace->poly_c[j] = 1 - ((s32)h << 1);
 	}
 }
+
+bool ml_dsa_get_z(struct ml_dsa_keys *ctx, u8 *out)
+{
+	bool ret = 0;
+	
+	s32 gamma;
+	s32 beta;
+	size_t bytes_counter;
+	void (*pack_z)(s32 *, u8 *);
+	s32 temp_mass[4];
+	u8 *temp_out = out;
+	if(ctx->k == ML_DSA_44_K) 
+	{ 
+		gamma = ML_DSA_44_GAMMA1;
+		beta = ML_DSA_44_BETA;
+		bytes_counter = 9;
+		pack_z = pack_z_44;
+		 
+	}else 
+	{ 
+		gamma = ML_DSA_65_87_GAMMA1; 
+		bytes_counter = 10;
+		pack_z = pack_z_65_87;
+		if(ctx->k == ML_DSA_65_K) { beta = ML_DSA_65_BETA; }
+		else { beta = ML_DSA_87_BETA; }
+	}
+	
+	for(size_t i = 0; i < ctx->l; i++)
+		{
+			for(size_t j = 0; j < ML_DSA_N; j++)
+			{
+				ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N] = ml_dsa_montgomery_reduce((s64)ctx->workspace->poly_c[j] * (s64)ctx->s1[j + i * ML_DSA_N]);
+			}
+		}
+		
+		for(size_t i = 0; i < ctx->l; i++) { ml_dsa_intt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
+		
+		for(size_t i = 0; i < ctx->l; i++)
+		{
+			size_t j = 0;
+			while(j < ML_DSA_N)
+			{
+				ctx->workspace->vect_y[j + i * ML_DSA_N] += ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N];
+				temp_mass[0] = gamma - ctx->workspace->vect_y[j + i * ML_DSA_N];
+				ret |= (ctx->workspace->vect_y[j + i * ML_DSA_N] >= gamma - beta || ctx->workspace->vect_y[j + i * ML_DSA_N] <= -(gamma - beta));
+				j++;
+				
+				ctx->workspace->vect_y[j + i * ML_DSA_N] += ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N];
+				temp_mass[1] = gamma - ctx->workspace->vect_y[j + i * ML_DSA_N];
+				ret |= (ctx->workspace->vect_y[j + i * ML_DSA_N] >= gamma - beta || ctx->workspace->vect_y[j + i * ML_DSA_N] <= -(gamma - beta));
+				j++;
+				
+				ctx->workspace->vect_y[j + i * ML_DSA_N] += ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N];
+				temp_mass[2] = gamma - ctx->workspace->vect_y[j + i * ML_DSA_N];
+				ret |= (ctx->workspace->vect_y[j + i * ML_DSA_N] >= gamma - beta || ctx->workspace->vect_y[j + i * ML_DSA_N] <= -(gamma - beta));
+				j++;
+				
+				ctx->workspace->vect_y[j + i * ML_DSA_N] += ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N];
+				temp_mass[3] = gamma - ctx->workspace->vect_y[j + i * ML_DSA_N];
+				ret |= (ctx->workspace->vect_y[j + i * ML_DSA_N] >= gamma - beta || ctx->workspace->vect_y[j + i * ML_DSA_N] <= -(gamma - beta));
+				j++;
+				
+				pack_z(temp_mass, temp_out);
+				temp_out += bytes_counter;
+			}
+		}
+		
+		return ret;
+}
+				
+static inline void pack_z_44(s32 *coefs, u8 *buffer)
+{
+	u8 i, j;
+	i = 0;
+	j = 0;
+	buffer[i]   = (u8)coefs[j]; 
+	buffer[++i] = (u8)(coefs[j] >> 8); 
+	buffer[++i] = (u8)(coefs[j] >> 16);
+	buffer[i]  |= (u8)(coefs[++j] << 2);
+	buffer[++i] = (u8)(coefs[j] >> 6);
+	buffer[++i] = (u8)(coefs[j] >> 14);
+	buffer[i]  |= (u8)(coefs[++j] << 4);
+	buffer[++i] = (u8)(coefs[j] >> 4);
+	buffer[++i] = (u8)(coefs[j] >> 12);
+	buffer[i]  |= (u8)(coefs[++j] << 6);
+	buffer[++i] = (u8)(coefs[j] >> 2);
+	buffer[++i] = (u8)(coefs[j] >> 10);
+}
+
+static inline void pack_z_65_87(s32 *coefs, u8 *buffer)
+{
+	u8 i, j;
+	i = 0;
+	j = 0;
+	buffer[i]   = (u8)coefs[j]; 
+	buffer[++i] = (u8)(coefs[j] >> 8);
+	buffer[++i] = (u8)(coefs[j] >> 16);
+	buffer[i]  |= (u8)(coefs[++j] << 4);
+	buffer[++i] = (u8)(coefs[j] >> 4);
+	buffer[++i] = (u8)(coefs[j] >> 12);
+	buffer[++i] = (u8)coefs[++j]; 
+	buffer[++i] = (u8)(coefs[j] >> 8);
+	buffer[++i] = (u8)(coefs[j] >> 16);
+	buffer[i]  |= (u8)(coefs[++j] << 4);
+	buffer[++i] = (u8)(coefs[j] >> 4);
+	buffer[++i] = (u8)(coefs[j] >> 12);
+}
 	
 		
 	
