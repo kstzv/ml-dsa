@@ -158,7 +158,7 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 		ml_dsa_ntt(ctx->workspace->poly_c);
 
 		// Обов'язково перевірити, чи не треба занулювати певні поля робочих структур для початку нової спроби
-		if(ml_dsa_get_z(ctx, sig + ML_DSA_32_BYTES)) { kappa += ctx->l; continue; } 
+		if(ml_dsa_get_z(ctx, sig + ctx->c_tilde_bytes)) { kappa += ctx->l; continue; } 
 		if(ml_dsa_get_r0(ctx)) { kappa += ctx->l; continue; }
 	
 	
