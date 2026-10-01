@@ -22,9 +22,9 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	ctx->l = l;
 	
 	// Parameter η definition
-	if(ctx->k == ML_DSA_44_K && ctx->l == ML_DSA_44_L) { ctx->eta = ML_DSA_44_87_ETA; }
-	else if(ctx->k == ML_DSA_65_K && ctx->l == ML_DSA_65_L) { ctx->eta = ML_DSA_65_ETA; }
-	else if(ctx->k == ML_DSA_87_K && ctx->l == ML_DSA_87_L) { ctx->eta = ML_DSA_44_87_ETA; }
+	if(ctx->k == ML_DSA_44_K && ctx->l == ML_DSA_44_L) { ctx->eta = ML_DSA_44_87_ETA; ctx->c_tilde_bytes = ML_DSA_32_BYTES; }
+	else if(ctx->k == ML_DSA_65_K && ctx->l == ML_DSA_65_L) { ctx->eta = ML_DSA_65_ETA; ctx->c_tilde_bytes = ML_DSA_32_BYTES + 16; }
+	else if(ctx->k == ML_DSA_87_K && ctx->l == ML_DSA_87_L) { ctx->eta = ML_DSA_44_87_ETA; ctx->c_tilde_bytes = ML_DSA_64_BYTES; }
 	
 	// Allocation for pk
 	ctx->pk = ml_dsa_alloc(ML_DSA_32_BYTES + 320 * k);
