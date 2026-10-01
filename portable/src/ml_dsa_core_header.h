@@ -182,6 +182,7 @@ struct ml_dsa_keys {
 	enum ml_dsa_level_k k;   // level k sequrity for key
 	enum ml_dsa_level_l l;   // level l sequrity for key
 	u8 eta;                  // Secret coefficient bound η
+	u8 c_tilde_bytes;        // size of c, first part sign
 	u8 rho[ML_DSA_32_BYTES]; // ρ - seed for Matrix
 	u8 K[ML_DSA_32_BYTES];   // secret signing seed, for create ρ′′
 	u8 tr[ML_DSA_64_BYTES];  // hash pk, for create μ
