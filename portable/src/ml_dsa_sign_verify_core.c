@@ -363,6 +363,50 @@ static inline void pack_z_65_87(s32 *coefs, u8 *buffer)
 	buffer[++i] = (u8)(coefs[j] >> 4);
 	buffer[++i] = (u8)(coefs[j] >> 12);
 }
+
+bool ml_dsa_get_r0(struct ml_dsa_keys *ctx)
+{
+	bool ret = 0;
+	
+	s32 gamma;
+	s32 beta;
+	s32 temp = 0;
+	if(ctx->k == ML_DSA_44_K)
+	{
+		gamma = ML_DSA_44_GAMMA2;
+		beta = ML_DSA_44_BETA;
+	}else if(ctx->k == ML_DSA_65_K)
+	{
+		gamma = ML_DSA_65_87_GAMMA2;
+		beta = ML_DSA_65_BETA;
+	}else if(ctx->k == ML_DSA_87_K)
+	{
+		gamma = ML_DSA_65_87_GAMMA2;
+		beta = ML_DSA_87_BETA;
+	}
+	
+	for(size_t i = 0; i < ctx->k; i++)
+	{
+		for(size_t j = 0; j < ML_DSA_N; j++)
+		{
+			ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N] = ml_dsa_montgomery_reduce((s64)ctx->workspace->poly_c[j] * (s64)ctx->s2[j + i * ML_DSA_N]);
+		}
+	}
+	
+	for(size_t i = 0; i < ctx->k; i++) { ml_dsa_intt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
+	
+	for(size_t i = 0; i < ctx->k; i++)
+	{
+		for(size_t j = 0; j < ML_DSA_N; j++)
+		{
+			ctx->workspace->vect_w[j + i * ML_DSA_N] -= ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N];
+			ml_dsa_decompose(&ctx->workspace->vect_w[j + i * ML_DSA_N], gamma, NULL, &temp);
+			ret |= ((temp >= gamma - beta) || (temp <= -(gamma - beta)));
+		}
+	}
+	
+	return ret;
+}
 	
 		
 	
