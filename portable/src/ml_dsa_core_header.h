@@ -22,6 +22,10 @@
 #define ML_DSA_65_BETA 196
 #define ML_DSA_87_BETA 120
 
+#define ML_DSA_OMEGA_44 80
+#define ML_DSA_OMEGA_65 55
+#define ML_DSA_OMEGA_87 75
+
 #define ML_DSA_44_GAMMA1          (1U << 17)
 #define ML_DSA_65_87_GAMMA1       (1U << 19)
 
