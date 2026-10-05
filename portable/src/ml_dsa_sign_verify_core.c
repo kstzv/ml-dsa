@@ -407,6 +407,70 @@ bool ml_dsa_get_r0(struct ml_dsa_keys *ctx)
 	
 	return ret;
 }
+
+bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out)
+{
+	bool ret = 0;
+	u8 hint_end_offsets[8]; // 8 - max value for k, in ML-DSA-87
+	
+	// Mult t0 and c
+	for(u8 i = 0; i < ctx->k; i++)
+	{
+		for(size_t j = 0; j < ML_DSA_N; j++)
+		{
+			ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N] = ml_dsa_montgomery_reduce((s64)ctx->workspace->poly_c[j] * (s64)ctx->t0[j + i * ML_DSA_N]);
+		}
+	}
+	
+	// iNTT for c * t0
+	for(u8 i = 0; i < ctx->k; i++) { ml_dsa_intt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
+	
+	s32 gamma2;
+	u8 omega;
+	if(ctx->k == ML_DSA_44_K) 
+	{
+		gamma2 = ML_DSA_44_GAMMA2;
+		omega = ML_DSA_OMEGA_44;
+	}else if(ctx->k == ML_DSA_65_K)
+	{
+		gamma2 = ML_DSA_65_87_GAMMA2;
+		omega = ML_DSA_OMEGA_65;
+	}else if(ctx->k == ML_DSA_87_K)
+	{
+		gamma2 = ML_DSA_65_87_GAMMA2;
+		omega = ML_DSA_OMEGA_87;
+	}
+	
+	ml_dsa_memzero(out, omega);
+	
+	// MakeHint
+	s32 z = 0;
+	s32 r = 0;
+	u8 omega_counter = 0;
+	for(u8 i = 0; i < ctx->k; i++)
+	{
+		for(size_t j = 0; j < ML_DSA_N; j++)
+		{
+			r = ctx->workspace->vect_w[j + i * ML_DSA_N] + ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N];
+			z = r + ((-1) * ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N]);
+			ml_dsa_decompose(&r, gamma2, &r, NULL);
+			ml_dsa_decompose(&z, gamma2, &z, NULL);
+			
+			// Check diapazone gamma
+			ret |= ((ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N] >= gamma2) || (ctx->workspace->temp_vector_buffer[j + i * ML_DSA_N] <= -gamma2));
+			u8 pos_one = (r != z) * j; // value get 0 if r != z
+			out[omega_counter] += pos_one; // value and counter == 0 both, so old value don`t because + 0
+			omega_counter += (r != z); // counter don`t change if r != z
+			ret |= omega_counter > omega;  // if counter more than omega ret get 1 and this functions return 1
+			
+			omega_counter *= !ret; // if counter >= omega, so it try is wrong. To avoid overflowing the provided buffer, the counter should always be multiplied by 0
+		}
+		hint_end_offsets[i] = omega_counter; // Write current value omega
+	}
+	
+	memcpy(out + omega, hint_end_offsets, ctx->k);
+	return ret;
+} 
 	
 		
 	
