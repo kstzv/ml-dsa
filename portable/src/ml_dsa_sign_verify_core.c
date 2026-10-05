@@ -408,6 +408,7 @@ bool ml_dsa_get_r0(struct ml_dsa_keys *ctx)
 	return ret;
 }
 
+// Check: mb cache leak
 bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out)
 {
 	bool ret = 0;
