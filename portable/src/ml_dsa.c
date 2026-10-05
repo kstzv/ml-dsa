@@ -125,11 +125,6 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	
 	#endif // Завершена гра з режимами - далі працює алгоритм
 	
-	
-	
-	
-	
-	
 	// Create mu
 	get_mu(ctx, msg, msg_len, context, context_len, prehash);
 	int ret = get_rho_double_prime(ctx, deterministic, entropy);
@@ -138,6 +133,9 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	
 	u32 kappa = 0;
 	u16 counter = 0;
+	u16 size_z;
+	if(ctx->k == ML_DSA_44_K) { size_z = ML_DSA_44_POLYZ_PACKED_BYTES; }
+	else { size_z = ML_DSA_65_87_POLYZ_PACKED_BYTES; }
 	while(counter <= 814)
 	{
 		// Get vector y
@@ -156,20 +154,15 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 		ml_dsa_get_c(ctx, c);
 		ml_dsa_get_poly_c(ctx, c);
 		ml_dsa_ntt(ctx->workspace->poly_c);
-
+		
+		// Get z
 		// Обов'язково перевірити, чи не треба занулювати певні поля робочих структур для початку нової спроби
-		if(ml_dsa_get_z(ctx, sig + ctx->c_tilde_bytes)) { kappa += ctx->l; continue; } 
-		if(ml_dsa_get_r0(ctx)) { kappa += ctx->l; continue; }
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
+		if(ml_dsa_get_z(ctx, sig + ctx->c_tilde_bytes)) { kappa += ctx->l; counter++; continue; } 
+		if(ml_dsa_get_r0(ctx)) { kappa += ctx->l; counter++; continue; }
+		if(ml_dsa_get_h(ctx, sig + ctx->c_tilde_bytes + size_z)) { kappa += ctx->l; counter++; continue; }
+		memcpy(sig, c, ctx->c_tilde_bytes);
+		counter++;
+	}
 	
 	
 	// Якщо тільки буфер, то просто занулюю його і все
