@@ -88,6 +88,7 @@ int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result)
 int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result)
 {
 	if(!ctx || !vect || !result) { return ML_DSA_EINVAL; }
+	ml_dsa_memzero(result, ctx->k * ML_DSA_N);
 	
 	u8 curr_seed[ML_DSA_32_BYTES + 2];
 	memcpy(curr_seed, ctx->rho, ML_DSA_32_BYTES);
