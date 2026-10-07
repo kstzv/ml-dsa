@@ -61,6 +61,7 @@ int get_full_matrix(struct ml_dsa_keys *ctx)
 int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result)
 {
 	if(!ctx || !vect || !result) { return ML_DSA_EINVAL; }
+	ml_dsa_memzero(result, ctx->k * ML_DSA_N);
 	
 	for (size_t i = 0; i < ctx->k; i++)
 	{
