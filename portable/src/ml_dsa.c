@@ -134,13 +134,13 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	u32 kappa = 0;
 	u16 counter = 0;
 	u16 size_z;
-	if(ctx->k == ML_DSA_44_K) { size_z = ML_DSA_44_POLYZ_PACKED_BYTES; }
-	else { size_z = ML_DSA_65_87_POLYZ_PACKED_BYTES; }
+	if(ctx->k == ML_DSA_44_K) { size_z = ctx->l * ML_DSA_44_POLYZ_PACKED_BYTES; }
+	else { size_z = ctx->l * ML_DSA_65_87_POLYZ_PACKED_BYTES; }
 	while(counter <= 814)
 	{
 		// Get vector y
 		ml_dsa_expand_mask(ctx, kappa);
-		memcpy(ctx->workspace->temp_vector_buffer, ctx->workspace->vect_y, sizeof(s32) * l * ML_DSA_N);
+		memcpy(ctx->workspace->temp_vector_buffer, ctx->workspace->vect_y, sizeof(s32) * ctx->l * ML_DSA_N);
 		
 		// Get vectors w and w1
 		for(size_t i = 0; i < ctx->l; i++) { ml_dsa_ntt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
