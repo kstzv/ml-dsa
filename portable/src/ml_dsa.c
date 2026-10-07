@@ -130,7 +130,7 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	int ret = get_rho_double_prime(ctx, deterministic, entropy);
 	if(ret != 0) { return ret; }
 	
-	
+	// general loop
 	u32 kappa = 0;
 	u16 counter = 0;
 	u16 size_z;
