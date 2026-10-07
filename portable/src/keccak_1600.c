@@ -38,6 +38,7 @@ static inline void keccak_pi(uint64_t s[25]);
 static inline void keccak_chi(uint64_t s[25]);
 static inline void keccak_iota(uint64_t s[25], unsigned round);
 
+// general func
 void keccak_f1600(uint64_t s[25])
 {
     for (unsigned round = 0; round < 24; round++) 
