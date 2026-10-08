@@ -86,51 +86,58 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	else if(deterministic > 1) { return ML_DSA_EINVAL; }
 	else if(prehash > 1) { return ML_DSA_EINVAL; }
 	
-	// Якщо режим тільки буфера, то тільки перевіряю відповідність розміра, якщо не збіг - повертаю помилку
-	#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER 
+		// Якщо режим тільки буфера, то тільки перевіряю відповідність розміра, якщо не збіг - повертаю помилку
+		#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER 
 	
-	if(prehash == 0 && msg_len > ML_DSA_BUFFER_SIZE) { return ML_DSA_ENOMEM; }
-	else if(prehash == 1 && (2 + context_len + ML_DSA_PREHASH_OID_SIZE + 2 * ML_DSA_64_BYTES) > ML_DSA_MAX_SIZE_FOR_FORMAT_M) { return ML_DSA_ENOMEM; }
+		if(prehash == 0 && msg_len > ML_DSA_BUFFER_SIZE) { return ML_DSA_ENOMEM; }
+		else if(prehash == 1 && (2 + context_len + ML_DSA_PREHASH_OID_SIZE + 2 * ML_DSA_64_BYTES) > ML_DSA_MAX_SIZE_FOR_FORMAT_M) { return ML_DSA_ENOMEM; }
 	
-	// Якщо гібридний режим, тоді .....
-	#elif ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
+		// Якщо гібридний режим, тоді .....
+		#elif ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
 	
-	// Створюю резервний тимчасовий вказівник для буфера та значення для кількості аллокаованної пам'яті
-	u8 *buffer_ptr = NULL;
-	size_t size_mem = 0;
+		// Створюю резервний тимчасовий вказівник для буфера та значення для кількості аллокаованної пам'яті
+		u8 *buffer_ptr = NULL;
+		size_t size_mem = 0;
 	
-	// Перевіряю, чи вистачить місце в буферу, якщо умова не виконана, то вистачить і аллокація не відбуваєстяь і тимчасові змінні не потрібні
-	if((prehash == 0 && msg_len > ML_DSA_BUFFER_SIZE) ||
-		(prehash == 1 && (2 + context_len + ML_DSA_PREHASH_OID_SIZE + 2 * ML_DSA_64_BYTES) > ML_DSA_MAX_SIZE_FOR_FORMAT_M))
-		{
-			// Якщо умова виконана, то щоб не було витоку - буфер зберігаю в тимчасовому вказівнику, аллокую пам'ять у відповідне
-			// Поле структуру, бо працюю тільки з ним
-			buffer_ptr = ctx->workspace->messege;
-			if(prehash == 1) { size_mem = ML_DSA_64_BYTES + 2 + context_len + ML_DSA_PREHASH_OID_SIZE + ML_DSA_64_BYTES; }
-			else { size_mem = ML_DSA_64_BYTES + 2 + context_len + msg_len; }
-			ctx->workspace->messege = ml_dsa_alloc(size_mem);
-			if(!ctx->workspace->messege) { return ML_DSA_ENOMEM; }
-		}
+		// Перевіряю, чи вистачить місце в буферу, якщо умова не виконана, то вистачить і аллокація не відбуваєстяь і тимчасові змінні не потрібні
+		if((prehash == 0 && msg_len > ML_DSA_BUFFER_SIZE) ||
+			(prehash == 1 && (2 + context_len + ML_DSA_PREHASH_OID_SIZE + 2 * ML_DSA_64_BYTES) > ML_DSA_MAX_SIZE_FOR_FORMAT_M))
+			{
+				// Якщо умова виконана, то щоб не було витоку - буфер зберігаю в тимчасовому вказівнику, аллокую пам'ять у відповідне
+				// Поле структуру, бо працюю тільки з ним
+				buffer_ptr = ctx->workspace->messege;
+				if(prehash == 1) { size_mem = ML_DSA_64_BYTES + 2 + context_len + ML_DSA_PREHASH_OID_SIZE + ML_DSA_64_BYTES; }
+				else { size_mem = ML_DSA_64_BYTES + 2 + context_len + msg_len; }
+				ctx->workspace->messege = ml_dsa_alloc(size_mem);
+				if(!ctx->workspace->messege) 
+				{ 
+					ctx->workspace->messege = buffer_ptr; 
+					buffer_ptr = NULL;
+					return ML_DSA_ENOMEM; 
+				}
+			}
 	
-	// Якщо режим тільки аллокації - то просто вираховую стільки треба, запитую в системи - якщо ні, то помилка, не вистачає памя'ті
-	#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
+		// Якщо режим тільки аллокації - то просто вираховую стільки треба, запитую в системи - якщо ні, то помилка, не вистачає памя'ті
+		#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
 	
-	size_t size_mem = 0;
-	if(prehash == 1) { size_mem = ML_DSA_64_BYTES + 2 + context_len + ML_DSA_PREHASH_OID_SIZE + ML_DSA_64_BYTES; }
-	else { size_mem = ML_DSA_64_BYTES + 2 + context_len + msg_len; }
+		size_t size_mem = 0;
+		if(prehash == 1) { size_mem = ML_DSA_64_BYTES + 2 + context_len + ML_DSA_PREHASH_OID_SIZE + ML_DSA_64_BYTES; }
+		else { size_mem = ML_DSA_64_BYTES + 2 + context_len + msg_len; }
 	
-	ctx->workspace->messege = ml_dsa_alloc(size_mem);
-	if(!ctx->workspace->messege) { return ML_DSA_ENOMEM; }
+		ctx->workspace->messege = ml_dsa_alloc(size_mem);
+		if(!ctx->workspace->messege) { return ML_DSA_ENOMEM; }
 		
 	
-	#endif // Завершена гра з режимами - далі працює алгоритм
+		#endif // Завершена гра з режимами - далі працює алгоритм
+	
+	int ret = 0;
 	
 	// Create mu
 	get_mu(ctx, msg, msg_len, context, context_len, prehash);
-	int ret = get_rho_double_prime(ctx, deterministic, entropy);
-	if(ret != 0) { return ret; }
+	ret = get_rho_double_prime(ctx, deterministic, entropy);
+	if(ret != 0) { goto finish; }
 	
-	// general loop
+	
 	u32 kappa = 0;
 	u16 counter = 0;
 	u16 size_z;
@@ -161,36 +168,39 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 		if(ml_dsa_get_r0(ctx)) { kappa += ctx->l; counter++; continue; }
 		if(ml_dsa_get_h(ctx, sig + ctx->c_tilde_bytes + size_z)) { kappa += ctx->l; counter++; continue; }
 		memcpy(sig, c, ctx->c_tilde_bytes);
-		counter++;
+		break;
 	}
 	
+	if(counter > 814) { ret = ML_DSA_EAGAIN; }
 	
-	// Якщо тільки буфер, то просто занулюю його і все
-	#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER
+	finish:
 	
-	ml_dsa_memzero(ctx->workspace->messege, ML_DSA_MAX_SIZE_FOR_FORMAT_M);
+		// Якщо тільки буфер, то просто занулюю його і все
+		#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER
 	
-	// При гібридному преевіряю .....
-	#elif ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
+		ml_dsa_memzero(ctx->workspace->messege, ML_DSA_MAX_SIZE_FOR_FORMAT_M);
 	
-	// Якщо вказівник тимчасового зберігання пустий - то працювало тільки через буфер, і аллокації не було, то тільки занулення
-	if(!buffer_ptr) { ml_dsa_memzero(ctx->workspace->messege, ML_DSA_MAX_SIZE_FOR_FORMAT_M); }
-	else // Якщо ні - то була аллокація, занулюю, очищаю, та перевизначю вказівники
-	{
+		// При гібридному преевіряю .....
+		#elif ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
+	
+		// Якщо вказівник тимчасового зберігання пустий - то працювало тільки через буфер, і аллокації не було, то тільки занулення
+		if(!buffer_ptr) { ml_dsa_memzero(ctx->workspace->messege, ML_DSA_MAX_SIZE_FOR_FORMAT_M); }
+		else // Якщо ні - то була аллокація, занулюю, очищаю, та перевизначю вказівники
+		{
+			ml_dsa_memzero(ctx->workspace->messege, size_mem);
+			ml_dsa_free(ctx->workspace->messege);
+			ctx->workspace->messege = buffer_ptr;
+			buffer_ptr = NULL;
+		}
+	
+		// Якщо режим тільки аллокації, то просто занулюю і очищаю
+		#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
+	
 		ml_dsa_memzero(ctx->workspace->messege, size_mem);
 		ml_dsa_free(ctx->workspace->messege);
-		ctx->workspace->messege = buffer_ptr;
-		buffer_ptr = NULL;
-	}
+		ctx->workspace->messege = NULL;
 	
-	// Якщо режим тільки аллокації, то просто занулюю і очищаю
-	#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
+		#endif
 	
-	ml_dsa_memzero(ctx->workspace->messege, size_mem);
-	ml_dsa_free(ctx->workspace->messege);
-	ctx->workspace->messege = NULL;
-	
-	#endif
-	
-	return 0;
+		return ret;
 }
