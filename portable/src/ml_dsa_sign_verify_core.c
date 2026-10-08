@@ -216,7 +216,7 @@ static inline size_t pack_for_c_65_87(struct ml_dsa_keys *ctx)
 
 void ml_dsa_get_poly_c(struct ml_dsa_keys *ctx, u8 *c)
 {
-	// poly_c must be zeroed before entering SampleInBall
+	ml_dsa_memzero(ctx->workspace->poly_c, ML_DSA_N * sizeof(s32));
 	
 	// get τ
 	u8 tau, size_c;
