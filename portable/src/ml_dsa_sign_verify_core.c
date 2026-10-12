@@ -473,7 +473,47 @@ bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out)
 	return ret;
 } 
 	
-		
+void ml_dsa_unpack_pk(struct ml_dsa_verify_ctx *ctx, const u8 *pk_msg)
+{
+    memcpy(ctx->rho, pk_msg, ML_DSA_32_BYTES);
+
+    const u8 *ptr = pk_msg + ML_DSA_32_BYTES;
+
+    for(u8 i = 0; i < ctx->k; i++)
+    {
+        size_t j = 0;
+        while(j < ML_DSA_N)
+        {
+            ctx->t1[j + i * ML_DSA_N] = (s32)(*ptr);
+            ptr++;
+            ctx->t1[j + i * ML_DSA_N] |= (s32)(((*ptr) & 0x03) << 8);
+            j++;
+
+            ctx->t1[j + i * ML_DSA_N] = (s32)(*ptr >> 2);
+            ptr++;
+            ctx->t1[j + i * ML_DSA_N] |= (s32)(((*ptr) & 0x0F) << 6);
+            j++;
+
+            ctx->t1[j + i * ML_DSA_N] = (s32)(*ptr >> 4);
+            ptr++;
+            ctx->t1[j + i * ML_DSA_N] |= (s32)(((*ptr) & 0x3F) << 4);
+            j++;
+
+            ctx->t1[j + i * ML_DSA_N] = (s32)(*ptr >> 6);
+            ptr++;
+            ctx->t1[j + i * ML_DSA_N] |= (s32)((*ptr) << 2);
+            j++;
+            ptr++;
+            
+             /* The alternative variours for unpack t1:
+             t0 = (u32)in[0] | (((u32)in[1] & 0x03) << 8);
+			 t1 = ((u32)in[1] >> 2) | (((u32)in[2] & 0x0F) << 6);
+			 t2 = ((u32)in[2] >> 4) | (((u32)in[3] & 0x3F) << 4);
+			 t3 = ((u32)in[3] >> 6) | ((u32)in[4] << 2);
+			 */
+        }
+    }
+}		
 	
 	
 	
