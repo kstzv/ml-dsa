@@ -201,7 +201,23 @@ struct ml_dsa_keys {
 	struct ml_dsa_workspace *workspace; // Data processing structure
 };
 
+struct ml_dsa_verify_ctx {
+    // Security parameters
+    enum ml_dsa_level_k k;
+    enum ml_dsa_level_l l;
 
+    // Decoded public key
+    u8 rho[ML_DSA_32_BYTES];
+    s32 *t1;
+
+    // Decoded signature
+    u8 c_tilde[ML_DSA_64_BYTES];
+    s32 *z;
+    u8 *h;
+
+    // Temporary workspace (to be designed later)
+    // struct ml_dsa_verify_workspace *workspace;
+};
 	
 
 // Internal functions from module create keys
