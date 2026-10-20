@@ -514,7 +514,123 @@ void ml_dsa_unpack_pk(struct ml_dsa_verify_ctx *ctx, const u8 *pk_msg)
         }
     }
 }		
-	
+
+int ml_dsa_unpack_sig(struct ml_dsa_verify_ctx *ctx, const u8 *sig_msg)
+{
+	if(ctx->k == ML_DSA_44_K) 
+	{ 
+		memcpy(ctx->c_tilde, sig_msg, ML_DSA_32_BYTES);
+		bit_unpack_z_44(ctx, sig_msg + ML_DSA_32_BYTES);
+		return ml_dsa_unpack_h(ctx, sig_msg + (ML_DSA_44_SIZE_SIG - (ML_DSA_OMEGA_44 + ctx->k)), sig_msg + (ML_DSA_44_SIZE_SIG - ctx->k), (u8)ctx->k, ML_DSA_OMEGA_44);
+	}else if(ctx->k == ML_DSA_65_K) 
+	{ 
+		memcpy(ctx->c_tilde, sig_msg, (ML_DSA_32_BYTES + 16));
+		bit_unpack_z_65_87(ctx, sig_msg + (ML_DSA_32_BYTES + 16));
+		return ml_dsa_unpack_h(ctx, sig_msg + (ML_DSA_65_SIZE_SIG - (ML_DSA_OMEGA_65 + ctx->k)), sig_msg + (ML_DSA_65_SIZE_SIG - ctx->k), (u8)ctx->k, ML_DSA_OMEGA_65);
+	}else if(ctx->k == ML_DSA_87_K) 
+	{ 
+		memcpy(ctx->c_tilde, sig_msg, ML_DSA_64_BYTES);
+		bit_unpack_z_65_87(ctx, sig_msg + ML_DSA_64_BYTES);
+		return ml_dsa_unpack_h(ctx, sig_msg + (ML_DSA_87_SIZE_SIG - (ML_DSA_OMEGA_87 + ctx->k)), sig_msg + (ML_DSA_87_SIZE_SIG - ctx->k), (u8)ctx->k, ML_DSA_OMEGA_87);
+	}else { return ML_DSA_EINVAL; }
+}	
+
+
+inline void bit_unpack_z_44(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z)
+{
+	for(u8 i = 0; i < ctx->l; i++)
+	{
+		size_t coef_ctr = 0;
+		s32 temp;
+		while(coef_ctr < ML_DSA_N)
+		{
+			temp = ptr_z[0];
+			temp |= (ptr_z[1] << 8);
+			temp |= ((ptr_z[2] & 0x03) << 16);
+			
+			ctx->z[coef_ctr + i * ML_DSA_N] = (s32)ML_DSA_44_GAMMA1 - temp;
+			coef_ctr++;
+			
+			temp = (ptr_z[2] >> 2);
+			temp |= (ptr_z[3] << 6);
+			temp |= ((ptr_z[4] & 0x0F) << 14);
+			
+			ctx->z[coef_ctr + i * ML_DSA_N] = (s32)ML_DSA_44_GAMMA1 - temp;
+			coef_ctr++;
+			
+			temp = (ptr_z[4] >> 4);
+			temp |= (ptr_z[5] << 4);
+			temp |= ((ptr_z[6] & 0x3F) << 12);
+			
+			ctx->z[coef_ctr + i * ML_DSA_N] = (s32)ML_DSA_44_GAMMA1 - temp;
+			coef_ctr++;
+			
+			temp = (ptr_z[6] >> 6);
+			temp |= (ptr_z[7] << 2);
+			temp |= (ptr_z[8] << 10);
+			
+			ctx->z[coef_ctr + i * ML_DSA_N] = (s32)ML_DSA_44_GAMMA1 - temp;
+			coef_ctr++;
+			
+			ptr_z += 9;
+		}
+	}
+}
+
+inline void bit_unpack_z_65_87(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z)
+{
+	for(u8 i = 0; i < ctx->l; i++)
+	{
+		size_t coef_ctr = 0;
+		s32 temp;
+		while(coef_ctr < ML_DSA_N)
+		{
+			temp = ptr_z[0];
+			temp |= (ptr_z[1] << 8);
+			temp |= ((ptr_z[2] & 0x0F) << 16);
+			
+			ctx->z[coef_ctr + i * ML_DSA_N] = (s32)ML_DSA_65_87_GAMMA1 - temp;
+			coef_ctr++;
+			
+			temp = (ptr_z[2] >> 4);
+			temp |= (ptr_z[3] << 4);
+			temp |= (ptr_z[4] << 12);
+			
+			ctx->z[coef_ctr + i * ML_DSA_N] = (s32)ML_DSA_65_87_GAMMA1 - temp;
+			coef_ctr++;
+			
+			ptr_z += 5;
+		}
+	}
+}
+
+
+static inline int ml_dsa_unpack_h(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_h, const u8 *k, u8 k_size, u8 omega)
+{
+	ml_dsa_memzero(ctx->h, (size_t)ctx->k * ML_DSA_N);
+    u8 units_ctr = 0;
+    for(u8 i = 0; i < k_size; i++)
+    {
+        if(k[i] > omega || k[i] < units_ctr) { return ML_DSA_EINVAL; }
+
+        u8 first = units_ctr;
+        while(units_ctr < k[i])
+        {
+            if(units_ctr > first && ptr_h[units_ctr - 1] >= ptr_h[units_ctr]) { return ML_DSA_EINVAL; }
+
+            ctx->h[ptr_h[units_ctr] + i * ML_DSA_N] = 1;
+            units_ctr++;
+        }
+    }
+    
+    while (units_ctr < omega)
+    {
+		if(ptr_h[units_ctr] != 0) { return ML_DSA_EINVAL; }
+		units_ctr++;
+	}
+
+    return 0;
+}	
 	
 	
 	
