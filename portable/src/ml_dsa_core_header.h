@@ -58,46 +58,6 @@
 #define ML_DSA_SYSTEM_ENTROPY_FAILED   134
 #define ML_DSA_CALLBACK_ENTROPY_FAILED 135
 
-// Selecting the message buffer memory type
-#define ML_DSA_MEM_BUFFER  1
-#define ML_DSA_MEM_HYBRID  2
-#define ML_DSA_MEM_ALLOC   3
-
-#ifndef ML_DSA_MEM_MODE
-#error "ML_DSA_MEM_MODE must be defined"
-#endif
-
-#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
-
-#ifndef ML_DSA_BUFFER_SIZE
-#error "ML_DSA_BUFFER_SIZE must be defined for BUFFER or HYBRID mode"
-#endif
-
-#if ML_DSA_BUFFER_SIZE == 0
-#error "ML_DSA_BUFFER_SIZE must be greater than 0"
-#endif
-
-#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
-
-#ifdef ML_DSA_BUFFER_SIZE
-#undef ML_DSA_BUFFER_SIZE
-#endif
-#define ML_DSA_BUFFER_SIZE 0
-
-#else
-#error "Invalid ML_DSA_MEM_MODE"
-#endif
-
-#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
-
-#define ML_DSA_MAX_SIZE_FOR_FORMAT_M (ML_DSA_64_BYTES + 2 + ML_DSA_SIZE_MAX_CONTEXT + ML_DSA_PREHASH_OID_SIZE + ML_DSA_BUFFER_SIZE)
-
-#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
-
-#define ML_DSA_MAX_SIZE_FOR_FORMAT_M 0
-
-#endif
-
 // for SIMD-frendly
 #ifndef ML_DSA_SIMD
 #error "ML_DSA_SIMD must be defined"
@@ -176,7 +136,6 @@ struct ml_dsa_workspace {
 	u8 rho_double_prime[ML_DSA_64_BYTES];
 	u8 mu[ML_DSA_64_BYTES];
 	u8 *scratch_buffer; // [ML_DSA_SIZE_SCRATCH_BUFFER];
-	u8 *messege;
 	struct shake_ctx *shake;
 	size_t len_messege;
 };

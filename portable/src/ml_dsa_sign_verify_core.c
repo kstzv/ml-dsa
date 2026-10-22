@@ -1,52 +1,86 @@
+#include "ml_dsa_core_header.h"
 
 static const uint8_t oid_shake256[11] = {
     0x06, 0x09, 0x60, 0x86, 0x48, 0x01,
     0x65, 0x03, 0x04, 0x02, 0x0C
 };
 
-static inline void ml_dsa_decompose(s32 r, s32 gamma2, s32 *r1, s32 *r0);
+static inline void ml_dsa_decompose(s32 *r, s32 gamma2, s32 *r1, s32 *r0);
+static inline size_t pack_for_c_44(struct ml_dsa_keys *ctx);
+static inline size_t pack_for_c_65_87(struct ml_dsa_keys *ctx);
+static inline void pack_z_44(s32 *coefs, u8 *buffer);
+static inline void pack_z_65_87(s32 *coefs, u8 *buffer);
+static inline void bit_unpack_z_44(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z);
+static inline void bit_unpack_z_65_87(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z);
+static inline int ml_dsa_unpack_h(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_h, const u8 *k, u8 k_size, u8 omega);
+
+int get_rho_double_prime(struct ml_dsa_keys *ctx, u8 deterministic, ml_dsa_entropy_fn entropy);
+void ml_dsa_expand_mask(struct ml_dsa_keys *ctx, u32 kappa);
+void ml_dsa_get_w1(struct ml_dsa_keys *ctx);
+void ml_dsa_get_c(struct ml_dsa_keys *ctx, u8 *c);
+void ml_dsa_get_poly_c(struct ml_dsa_keys *ctx, u8 *c);
+bool ml_dsa_get_z(struct ml_dsa_keys *ctx, u8 *out);
+bool ml_dsa_get_r0(struct ml_dsa_keys *ctx);
+bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out);
+int ml_dsa_unpack_sig(struct ml_dsa_verify_ctx *ctx, const u8 *sig_msg);
 
 void get_mu(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, const uint8_t *context, size_t context_len, u8 prehash)
 {
-	u8 *temp_ptr = ctx->workspace->messege;
-	size_t counter_ptr = 0;
-	memcpy(temp_ptr, ctx->tr, ML_DSA_64_BYTES);
-	counter_ptr += ML_DSA_64_BYTES;
-	temp_ptr += ML_DSA_64_BYTES;
+	// buffer for first three rate (136 * 3 = 408)
+	u8 first_rate[408]; 
+	ml_dsa_memzero(first_rate, 408);
 	
-	*temp_ptr = prehash;
-	temp_ptr++;
-	counter_ptr++;
+	// copy hash pk, bytes prehash and size of contest
+	memcpy(first_rate, ctx->tr, ML_DSA_64_BYTES); 
+	first_rate[ML_DSA_64_BYTES] = prehash;        
+	first_rate[ML_DSA_64_BYTES + 1] = (u8)context_len;
 	
-	*temp_ptr = (u8)context_len;
-	temp_ptr++;
-	counter_ptr++;
-	
-	memcpy(temp_ptr, context, context_len);
+	// copy context
+	size_t counter_ptr = ML_DSA_64_BYTES + 2;
+	if(context_len) { memcpy(first_rate + counter_ptr, context, context_len); }
 	counter_ptr += context_len;
-	temp_ptr += context_len;
 	
-	if(prehash == 0)
-	{
-		memcpy(temp_ptr, msg, msg_len);
-		counter_ptr += msg_len;
-		temp_ptr += msg_len;
-	}else
+	if(prehash == 1)
 	{
 		shake_ctx_zero(ctx->workspace->shake);
 		shake_ctx_init(ctx->workspace->shake, ctx->workspace->mu, ML_DSA_64_BYTES, msg, msg_len);
 		shake256(ctx->workspace->shake);
-		memcpy(temp_ptr, oid_shake256, ML_DSA_PREHASH_OID_SIZE);
+		memcpy(first_rate + counter_ptr, oid_shake256, ML_DSA_PREHASH_OID_SIZE);
 		counter_ptr += ML_DSA_PREHASH_OID_SIZE;
-		temp_ptr += ML_DSA_PREHASH_OID_SIZE;
-		memcpy(temp_ptr, ctx->workspace->mu, ML_DSA_64_BYTES);
+		memcpy(first_rate + counter_ptr, ctx->workspace->mu, ML_DSA_64_BYTES);
 		counter_ptr += ML_DSA_64_BYTES;
-		temp_ptr += ML_DSA_64_BYTES;
+		
+		shake_ctx_zero(ctx->workspace->shake);
+		shake_ctx_init(ctx->workspace->shake, ctx->workspace->mu, ML_DSA_64_BYTES, first_rate, counter_ptr);
+		shake256(ctx->workspace->shake);
+		goto exit;
 	}
 	
+	if(408 - counter_ptr >= msg_len) 
+	{
+		memcpy(first_rate + counter_ptr, msg, msg_len);
+		counter_ptr += msg_len;
+		
+		shake_ctx_zero(ctx->workspace->shake);
+		shake_ctx_init(ctx->workspace->shake, ctx->workspace->mu, ML_DSA_64_BYTES, first_rate, counter_ptr);
+		shake256(ctx->workspace->shake);
+		goto exit;
+	}
+	
+	memcpy(first_rate + counter_ptr, msg, 408 - counter_ptr); 
 	shake_ctx_zero(ctx->workspace->shake);
-	shake_ctx_init(ctx->workspace->shake, ctx->workspace->mu, ML_DSA_64_BYTES, ctx->workspace->messege, counter_ptr);
+	shake_ctx_init(ctx->workspace->shake, ctx->workspace->mu, ML_DSA_64_BYTES, first_rate, 408);
+	ctx->workspace->shake->rate = 136;
+	shake_absorb(ctx->workspace->shake);
+	counter_ptr = 408 - counter_ptr;
+	ctx->workspace->shake->in = msg + counter_ptr;
+	ctx->workspace->shake->inlen = msg_len - counter_ptr;
 	shake256(ctx->workspace->shake);
+	
+	exit:
+		ml_dsa_memzero(first_rate, 408);
+		shake_ctx_zero(ctx->workspace->shake);
+		return;
 }
 
 int get_rho_double_prime(struct ml_dsa_keys *ctx, u8 deterministic, ml_dsa_entropy_fn entropy)
@@ -76,7 +110,7 @@ int get_rho_double_prime(struct ml_dsa_keys *ctx, u8 deterministic, ml_dsa_entro
 	return 0;
 }
 
-void ml_dsa_expand_mask(struct ml_dsa_keys *ctx, s32 *y, u32 kappa)
+void ml_dsa_expand_mask(struct ml_dsa_keys *ctx, u32 kappa)
 {
 	u32 gamma1;
     u32 coefficient_bits;
@@ -125,7 +159,7 @@ void ml_dsa_expand_mask(struct ml_dsa_keys *ctx, s32 *y, u32 kappa)
 			u32 value = accumulator & mask;
 			accumulator >>= coefficient_bits;
             bits_in_accumulator -= coefficient_bits;
-            y[(size_t)r * ML_DSA_N + i] = (s32)gamma1 - (s32)value;
+            ctx->workspace->vect_y[(size_t)r * ML_DSA_N + i] = (s32)gamma1 - (s32)value;
 		}
 	}
 }
@@ -228,7 +262,7 @@ void ml_dsa_get_poly_c(struct ml_dsa_keys *ctx, u8 *c)
 	u8 temp_buff[136];
 	shake_ctx_zero(ctx->workspace->shake);
 	shake_ctx_init(ctx->workspace->shake, temp_buff, 136, c, size_c);
-	shake256(ctx);
+	shake256(ctx->workspace->shake);
 	
 	// First 8 bytes contain sign bits
 	u8 bit_sing[8];
@@ -332,17 +366,17 @@ static inline void pack_z_44(s32 *coefs, u8 *buffer)
 	i = 0;
 	j = 0;
 	buffer[i]   = (u8)coefs[j]; 
-	buffer[++i] = (u8)(coefs[j] >> 8); 
-	buffer[++i] = (u8)(coefs[j] >> 16);
-	buffer[i]  |= (u8)(coefs[++j] << 2);
-	buffer[++i] = (u8)(coefs[j] >> 6);
-	buffer[++i] = (u8)(coefs[j] >> 14);
-	buffer[i]  |= (u8)(coefs[++j] << 4);
-	buffer[++i] = (u8)(coefs[j] >> 4);
-	buffer[++i] = (u8)(coefs[j] >> 12);
-	buffer[i]  |= (u8)(coefs[++j] << 6);
-	buffer[++i] = (u8)(coefs[j] >> 2);
-	buffer[++i] = (u8)(coefs[j] >> 10);
+	buffer[++i] = (u8)((u32)coefs[j] >> 8); 
+	buffer[++i] = (u8)((u32)coefs[j] >> 16);
+	buffer[i]  |= (u8)((u32)coefs[++j] << 2);
+	buffer[++i] = (u8)((u32)coefs[j] >> 6);
+	buffer[++i] = (u8)((u32)coefs[j] >> 14);
+	buffer[i]  |= (u8)((u32)coefs[++j] << 4);
+	buffer[++i] = (u8)((u32)coefs[j] >> 4);
+	buffer[++i] = (u8)((u32)coefs[j] >> 12);
+	buffer[i]  |= (u8)((u32)coefs[++j] << 6);
+	buffer[++i] = (u8)((u32)coefs[j] >> 2);
+	buffer[++i] = (u8)((u32)coefs[j] >> 10);
 }
 
 static inline void pack_z_65_87(s32 *coefs, u8 *buffer)
@@ -351,17 +385,17 @@ static inline void pack_z_65_87(s32 *coefs, u8 *buffer)
 	i = 0;
 	j = 0;
 	buffer[i]   = (u8)coefs[j]; 
-	buffer[++i] = (u8)(coefs[j] >> 8);
-	buffer[++i] = (u8)(coefs[j] >> 16);
-	buffer[i]  |= (u8)(coefs[++j] << 4);
-	buffer[++i] = (u8)(coefs[j] >> 4);
-	buffer[++i] = (u8)(coefs[j] >> 12);
+	buffer[++i] = (u8)((u32)coefs[j] >> 8);
+	buffer[++i] = (u8)((u32)coefs[j] >> 16);
+	buffer[i]  |= (u8)((u32)coefs[++j] << 4);
+	buffer[++i] = (u8)((u32)coefs[j] >> 4);
+	buffer[++i] = (u8)((u32)coefs[j] >> 12);
 	buffer[++i] = (u8)coefs[++j]; 
-	buffer[++i] = (u8)(coefs[j] >> 8);
-	buffer[++i] = (u8)(coefs[j] >> 16);
-	buffer[i]  |= (u8)(coefs[++j] << 4);
-	buffer[++i] = (u8)(coefs[j] >> 4);
-	buffer[++i] = (u8)(coefs[j] >> 12);
+	buffer[++i] = (u8)((u32)coefs[j] >> 8);
+	buffer[++i] = (u8)((u32)coefs[j] >> 16);
+	buffer[i]  |= (u8)((u32)coefs[++j] << 4);
+	buffer[++i] = (u8)((u32)coefs[j] >> 4);
+	buffer[++i] = (u8)((u32)coefs[j] >> 12);
 }
 
 bool ml_dsa_get_r0(struct ml_dsa_keys *ctx)
@@ -442,7 +476,7 @@ bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out)
 		omega = ML_DSA_OMEGA_87;
 	}
 	
-	ml_dsa_memzero(out, omega);
+	ml_dsa_memzero(out, (size_t)omega + ctx->k);
 	
 	// MakeHint
 	s32 z = 0;
@@ -536,7 +570,7 @@ int ml_dsa_unpack_sig(struct ml_dsa_verify_ctx *ctx, const u8 *sig_msg)
 }	
 
 
-inline void bit_unpack_z_44(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z)
+static inline void bit_unpack_z_44(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z)
 {
 	for(u8 i = 0; i < ctx->l; i++)
 	{
@@ -577,7 +611,7 @@ inline void bit_unpack_z_44(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z)
 	}
 }
 
-inline void bit_unpack_z_65_87(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z)
+static inline void bit_unpack_z_65_87(struct ml_dsa_verify_ctx *ctx, const u8 *ptr_z)
 {
 	for(u8 i = 0; i < ctx->l; i++)
 	{

@@ -86,56 +86,12 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	else if(deterministic > 1) { return ML_DSA_EINVAL; }
 	else if(prehash > 1) { return ML_DSA_EINVAL; }
 	
-		// Якщо режим тільки буфера, то тільки перевіряю відповідність розміра, якщо не збіг - повертаю помилку
-		#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER 
-	
-		if(prehash == 0 && msg_len > ML_DSA_BUFFER_SIZE) { return ML_DSA_ENOMEM; }
-		else if(prehash == 1 && (2 + context_len + ML_DSA_PREHASH_OID_SIZE + 2 * ML_DSA_64_BYTES) > ML_DSA_MAX_SIZE_FOR_FORMAT_M) { return ML_DSA_ENOMEM; }
-	
-		// Якщо гібридний режим, тоді .....
-		#elif ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
-	
-		// Створюю резервний тимчасовий вказівник для буфера та значення для кількості аллокаованної пам'яті
-		u8 *buffer_ptr = NULL;
-		size_t size_mem = 0;
-	
-		// Перевіряю, чи вистачить місце в буферу, якщо умова не виконана, то вистачить і аллокація не відбуваєстяь і тимчасові змінні не потрібні
-		if((prehash == 0 && msg_len > ML_DSA_BUFFER_SIZE) ||
-			(prehash == 1 && (2 + context_len + ML_DSA_PREHASH_OID_SIZE + 2 * ML_DSA_64_BYTES) > ML_DSA_MAX_SIZE_FOR_FORMAT_M))
-			{
-				// Якщо умова виконана, то щоб не було витоку - буфер зберігаю в тимчасовому вказівнику, аллокую пам'ять у відповідне
-				// Поле структуру, бо працюю тільки з ним
-				buffer_ptr = ctx->workspace->messege;
-				if(prehash == 1) { size_mem = ML_DSA_64_BYTES + 2 + context_len + ML_DSA_PREHASH_OID_SIZE + ML_DSA_64_BYTES; }
-				else { size_mem = ML_DSA_64_BYTES + 2 + context_len + msg_len; }
-				ctx->workspace->messege = ml_dsa_alloc(size_mem);
-				if(!ctx->workspace->messege) 
-				{ 
-					ctx->workspace->messege = buffer_ptr; 
-					buffer_ptr = NULL;
-					return ML_DSA_ENOMEM; 
-				}
-			}
-	
-		// Якщо режим тільки аллокації - то просто вираховую стільки треба, запитую в системи - якщо ні, то помилка, не вистачає памя'ті
-		#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
-	
-		size_t size_mem = 0;
-		if(prehash == 1) { size_mem = ML_DSA_64_BYTES + 2 + context_len + ML_DSA_PREHASH_OID_SIZE + ML_DSA_64_BYTES; }
-		else { size_mem = ML_DSA_64_BYTES + 2 + context_len + msg_len; }
-	
-		ctx->workspace->messege = ml_dsa_alloc(size_mem);
-		if(!ctx->workspace->messege) { return ML_DSA_ENOMEM; }
-		
-	
-		#endif // Завершена гра з режимами - далі працює алгоритм
-	
 	int ret = 0;
 	
 	// Create mu
 	get_mu(ctx, msg, msg_len, context, context_len, prehash);
 	ret = get_rho_double_prime(ctx, deterministic, entropy);
-	if(ret != 0) { goto finish; }
+	if(ret != 0) { return ret; }
 	
 	
 	u32 kappa = 0;
@@ -173,34 +129,35 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, con
 	
 	if(counter > 814) { ret = ML_DSA_EAGAIN; }
 	
-	finish:
-	
-		// Якщо тільки буфер, то просто занулюю його і все
-		#if ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER
-	
-		ml_dsa_memzero(ctx->workspace->messege, ML_DSA_MAX_SIZE_FOR_FORMAT_M);
-	
-		// При гібридному преевіряю .....
-		#elif ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID
-	
-		// Якщо вказівник тимчасового зберігання пустий - то працювало тільки через буфер, і аллокації не було, то тільки занулення
-		if(!buffer_ptr) { ml_dsa_memzero(ctx->workspace->messege, ML_DSA_MAX_SIZE_FOR_FORMAT_M); }
-		else // Якщо ні - то була аллокація, занулюю, очищаю, та перевизначю вказівники
-		{
-			ml_dsa_memzero(ctx->workspace->messege, size_mem);
-			ml_dsa_free(ctx->workspace->messege);
-			ctx->workspace->messege = buffer_ptr;
-			buffer_ptr = NULL;
-		}
-	
-		// Якщо режим тільки аллокації, то просто занулюю і очищаю
-		#elif ML_DSA_MEM_MODE == ML_DSA_MEM_ALLOC
-	
-		ml_dsa_memzero(ctx->workspace->messege, size_mem);
-		ml_dsa_free(ctx->workspace->messege);
-		ctx->workspace->messege = NULL;
-	
-		#endif
-	
-		return ret;
+	return ret;
 }
+
+int ml_dsa_verify(const u8 *pk, size_t pk_len, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, const u8 *sig, size_t sig_len, u8 prehash)
+{
+	if(!pk || !msg || !context || !sig) { return ML_DSA_EINVAL; }
+	
+	enum ml_dsa_level_k k;
+	enum ml_dsa_level_l l;
+	if(pk_len == ML_DSA_44_SIZE_PK)
+	{
+		k = ML_DSA_44_K;
+		l = ML_DSA_44_L;
+	}else if(pk_len == ML_DSA_65_SIZE_PK)
+	{
+		k = ML_DSA_65_K;
+		l = ML_DSA_65_L;
+	}else if(pk_len == ML_DSA_87_SIZE_PK)
+	{
+		k = ML_DSA_87_K;
+		l = ML_DSA_87_L;
+	}else { return ML_DSA_EINVAL; }
+
+
+
+
+
+
+
+
+
+

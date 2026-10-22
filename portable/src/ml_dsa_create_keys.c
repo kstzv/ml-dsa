@@ -76,23 +76,9 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	
 	#endif
 	
-	size_t size_u8 = 0;
-	size_u8 += ML_DSA_SIZE_SCRATCH_BUFFER; // buffer for shakes
-	// buffer for format messege
-	if(ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID) 
-	{ 
-		size_u8 += ML_DSA_MAX_SIZE_FOR_FORMAT_M;
-	} 
-	
-	ctx->workspace->scratch_buffer = ml_dsa_alloc(size_u8);
+	// For temp u8 buffer
+	ctx->workspace->scratch_buffer = ml_dsa_alloc(ML_DSA_SIZE_SCRATCH_BUFFER);
 	if(!ctx->workspace->scratch_buffer) { goto err_7; }
-	if(ML_DSA_MEM_MODE == ML_DSA_MEM_BUFFER || ML_DSA_MEM_MODE == ML_DSA_MEM_HYBRID)
-	{
-		ctx->workspace->messege = ctx->workspace->scratch_buffer + ML_DSA_SIZE_SCRATCH_BUFFER;
-	}else
-	{
-		ctx->workspace->messege = NULL;
-	}
 	
 	ctx->workspace->shake = ml_dsa_alloc(sizeof(struct shake_ctx));
 	if(!ctx->workspace->shake) { goto err_8; }
@@ -157,7 +143,7 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 	
 	if(ctx->workspace && ctx->workspace->temp_vector_buffer)
 	{
-		size_t size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		  
+		size_t size_s32 = ctx->k * ML_DSA_N * sizeof(s32); 		  
 		size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		 
 		size_s32 += ctx->l * ML_DSA_N * sizeof(s32); 		 
 		size_s32 += ML_DSA_N * sizeof(s32); 		
@@ -167,9 +153,7 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 	
 	if(ctx->workspace && ctx->workspace->scratch_buffer)
 	{
-		size_t size_zero = ML_DSA_SIZE_SCRATCH_BUFFER;
-		if(ctx->workspace->messege != NULL) { size_zero += ML_DSA_MAX_SIZE_FOR_FORMAT_M; }
-		ml_dsa_memzero(ctx->workspace->scratch_buffer, size_zero);
+		ml_dsa_memzero(ctx->workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER);
 		ml_dsa_free(ctx->workspace->scratch_buffer);
 	}
 	

@@ -1,9 +1,5 @@
 #include "shake.h"
 
-static void shake_absorb(struct shake_ctx *ctx);
-static void shake_finalize(struct shake_ctx *ctx);
-static void shake_squeeze(struct shake_ctx *ctx);
-
 int shake_ctx_get_mem(struct shake_ctx *ctx, uint64_t *state, size_t size_mem)
 {
 	if(!ctx || !state || size_mem != 25) { return -1; }
@@ -74,7 +70,7 @@ void shake256(struct shake_ctx *ctx)
     shake_squeeze(ctx);
 }
 
-static void shake_absorb(struct shake_ctx *ctx)
+void shake_absorb(struct shake_ctx *ctx)
 {
     uint8_t *s = (uint8_t *)ctx->state;
 
@@ -98,7 +94,7 @@ static void shake_absorb(struct shake_ctx *ctx)
     }
 }
 
-static void shake_finalize(struct shake_ctx *ctx)
+void shake_finalize(struct shake_ctx *ctx)
 {
     uint8_t *s = (uint8_t *)ctx->state;
 
@@ -108,7 +104,7 @@ static void shake_finalize(struct shake_ctx *ctx)
     keccak_f1600(ctx->state);
 }
 
-static void shake_squeeze(struct shake_ctx *ctx)
+void shake_squeeze(struct shake_ctx *ctx)
 {
     uint8_t *s = (uint8_t *)ctx->state;
     
