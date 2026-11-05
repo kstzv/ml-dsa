@@ -57,6 +57,11 @@
 #define ML_DSA_EAGAIN          		   11
 #define ML_DSA_SYSTEM_ENTROPY_FAILED   134
 #define ML_DSA_CALLBACK_ENTROPY_FAILED 135
+#define ML_DSA_EBADSIG                 136
+
+#ifndef ML_DSA_FULL_MATRIX_BUFFER
+#define ML_DSA_FULL_MATRIX_BUFFER 0
+#endif
 
 // for SIMD-frendly
 #ifndef ML_DSA_SIMD
@@ -160,22 +165,35 @@ struct ml_dsa_keys {
 	struct ml_dsa_workspace *workspace; // Data processing structure
 };
 
-struct ml_dsa_verify_ctx {
-    // Security parameters
+struct ml_dsa_verify_workspace {
+	ml_dsa_atomic_t is_free; // атомарні операції перевизначатимуться в портах
+	struct ml_dsa_verify_workspace *next;
     enum ml_dsa_level_k k;
     enum ml_dsa_level_l l;
 
-    // Decoded public key
+    s32 *poly_c;
+    s32 *temp_vector_1;
+    s32 *temp_vector_2;
+ 
+    #if ML_DSA_FULL_MATRIX_BUFFER
+    s32 *matrix_buffer;
+    #else
     u8 rho[ML_DSA_32_BYTES];
-    s32 *t1;
-
-    // Decoded signature
+    #endif
+    
+    u8 tr[ML_DSA_64_BYTES];
+    u8 mu[ML_DSA_64_BYTES];
     u8 c_tilde[ML_DSA_64_BYTES];
-    s32 *z;
+    u8 *scratch_buffer;
     u8 *h;
+    
+    struct shake_ctx *shake;
+};
 
-    // Temporary workspace (to be designed later)
-    // struct ml_dsa_verify_workspace *workspace;
+struct ml_dsa_verify_ctx {
+	struct ml_dsa_verify_workspace *work;
+	size_t size_pool;
+	bool fixed_pk;
 };
 	
 
