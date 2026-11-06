@@ -9,6 +9,9 @@ int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result);
 
 #if ML_DSA_FULL_MATRIX_BUFFER
 
+int get_full_matrix(struct ml_dsa_keys *ctx);
+int mult_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
+
 // Expand the full matrix A from rho and store it in matrix_buffer
 // Matrix entries are generated as RejNTTPoly(rho || column || row)
 int get_full_matrix(struct ml_dsa_keys *ctx)
@@ -58,6 +61,7 @@ int get_full_matrix(struct ml_dsa_keys *ctx)
 
 // Multiply the pre-expanded matrix A by vect
 // Both operands are interpreted in the NTT domain
+// (works with secrets or data dependent on a secret)
 int mult_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
 {
 	if(!matrix_buffer || !vect || !result) { return -ML_DSA_EINVAL; }
@@ -91,6 +95,7 @@ int mult_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k 
 
 // Stream matrix A from rho and multiply entries immediately
 // No full matrix is materialized in memory
+// (works with secrets or data dependent on a secret)
 void mult_matrix(u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
 {
 	ml_dsa_memzero(result, k * ML_DSA_N * sizeof(s32));

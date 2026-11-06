@@ -26,7 +26,7 @@ struct ml_dsa_keys *ml_dsa_create_keys(u8 level, ml_dsa_entropy_fn entropy)
 	ret = get_rho_K_s1_s2(ctx, entropy);
 	if(ret != 0) { goto err_2; }
 	
-	#if defined(ML_DSA_FULL_MATRIX_BUFFER)
+	#if ML_DSA_FULL_MATRIX_BUFFER
 	
 	ret = get_full_matrix(ctx);
 	if(ret != 0) { goto err_2; }

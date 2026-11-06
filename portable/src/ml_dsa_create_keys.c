@@ -45,7 +45,7 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	ml_dsa_memzero(ctx->workspace, sizeof(struct ml_dsa_workspace));
 	
 	// Allocations buffer for matrix
-	#if defined(ML_DSA_FULL_MATRIX_BUFFER)
+	#if ML_DSA_FULL_MATRIX_BUFFER
 	
 	size_t size_s32 = l * k * ML_DSA_N * sizeof(s32); // For matrix
 	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For temp vector
@@ -178,6 +178,7 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 
 // The function for generating a primary seed and obtaining values 
 // ​For the following key structure fields: ρ, K, s1 and s2
+// (works with secrets or data dependent on a secret)
 int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 {
 	// Buffers for first and expanded seeds 
@@ -241,28 +242,36 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 			val_0 = ctx->workspace->scratch_buffer[count_buff] & 0x0F;
 			val_1 = ctx->workspace->scratch_buffer[count_buff] >> 4;
 			
-			if(ctx->eta == ML_DSA_44_87_ETA && val_0 < limit)
+			if(ctx->eta == ML_DSA_44_87_ETA)
 			{
+				u8 accepted = (u8)(val_0 < limit);
 				val_0 = val_0 - (205 * val_0 >> 10) * 5;
-				ptr[count_coef] = 2 - val_0;
-				count_coef++;
-			} else if(ctx->eta == ML_DSA_65_ETA && val_0 < limit)
+				s32 coef = 2 - (s32)val_0;
+				ptr[count_coef] = coef * (s32)accepted;
+				count_coef += accepted;
+			}else if(ctx->eta == ML_DSA_65_ETA)
 			{
-				ptr[count_coef] = 4 - val_0;
-				count_coef++;
+				u8 accepted = (u8)(val_0 < limit);
+				s32 coef = 4 - (s32)val_0;
+				ptr[count_coef] = coef * (s32)accepted;
+				count_coef += accepted;
 			}
-			
+
 			if(count_coef == ML_DSA_N) { break; }
-			
-			if(ctx->eta == ML_DSA_44_87_ETA && val_1 < limit)
+
+			if(ctx->eta == ML_DSA_44_87_ETA)
 			{
+				u8 accepted = (u8)(val_1 < limit);
 				val_1 = val_1 - (205 * val_1 >> 10) * 5;
-				ptr[count_coef] = 2 - val_1;
-				count_coef++;
-			} else if(ctx->eta == ML_DSA_65_ETA && val_1 < limit)
+				s32 coef = 2 - (s32)val_1;
+				ptr[count_coef] = coef * (s32)accepted;
+				count_coef += accepted;
+			}else if(ctx->eta == ML_DSA_65_ETA)
 			{
-				ptr[count_coef] = 4 - val_1;
-				count_coef++;
+				u8 accepted = (u8)(val_1 < limit);
+				s32 coef = 4 - (s32)val_1;
+				ptr[count_coef] = coef * (s32)accepted;
+				count_coef += accepted;
 			}
 			
 			count_buff++;
@@ -282,6 +291,7 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
 	return 0;
 }
 
+// (works with secrets or data dependent on a secret)
 int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t)
 {
 	if(!ctx || !t || !ctx->t0 || !ctx->t1) { return ML_DSA_EINVAL; }

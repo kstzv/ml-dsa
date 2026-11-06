@@ -102,6 +102,11 @@
 #error "No ML-DSA port selected."
 #endif // HEADERS
 
+static const u8 oid_shake256[11] = {
+    0x06, 0x09, 0x60, 0x86, 0x48, 0x01,
+    0x65, 0x03, 0x04, 0x02, 0x0C
+};
+
 // Callback used to obtain cryptographically secure random bytes.
 // Parameters:
 //   buf - destination buffer
@@ -185,7 +190,6 @@ struct ml_dsa_verify_workspace {
     u8 mu[ML_DSA_64_BYTES];
     u8 c_tilde[ML_DSA_64_BYTES];
     u8 *scratch_buffer;
-    u8 *h;
     
     struct shake_ctx *shake;
 };
@@ -205,18 +209,38 @@ extern int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t);
 extern int ml_dsa_create_public_data(struct ml_dsa_keys *ctx);
 
 // Internal function from matrix module
-extern int mult_matrix(struct ml_dsa_keys *ctx, s32 *vect, s32 *result);
-#if defined(ML_DSA_FULL_MATRIX_BUFFER)
+#if ML_DSA_FULL_MATRIX_BUFFER
 extern int get_full_matrix(struct ml_dsa_keys *ctx);
+extern int mult_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
+#else
+extern void mult_matrix(u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 #endif
 
-extern void get_mu(struct ml_dsa_keys *ctx, const uint8_t *msg, size_t msg_len, const uint8_t *context, size_t context_len, u8 prehash);
+// from ml_dsa_sign_verify_common.c module
+extern void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const uint8_t *msg, size_t msg_len, const uint8_t *context, size_t context_len, u8 prehash);
+extern void ml_dsa_get_w1(const s32 *w, s32 *w1, const u8 *h, enum ml_dsa_level_k k);
+extern void ml_dsa_get_poly_c(s32 *poly_c, u8 *c, struct shake_ctx *shake, enum ml_dsa_level_k k);
+
+// from ml_dsa_sign_core.c module
+extern int get_rho_double_prime(struct ml_dsa_keys *ctx, u8 deterministic, ml_dsa_entropy_fn entropy);
+extern void ml_dsa_expand_mask(struct ml_dsa_keys *ctx, u32 kappa);
+extern bool ml_dsa_get_z(struct ml_dsa_keys *ctx, u8 *out);
+extern bool ml_dsa_get_r0(struct ml_dsa_keys *ctx);
+extern bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out);
+extern void ml_dsa_get_c(struct ml_dsa_keys *ctx, u8 *c);
+
+// from ml_dsa_verify_core.c module
+extern int ml_dsa_unpack_c_z(struct ml_dsa_verify_workspace *ctx, const u8 *sig_msg);
+extern void ml_dsa_unpack_pk(s32 * t1, const u8 *pk_msg, enum ml_dsa_level_k k);
+extern int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, u8 *sign);
+extern int ml_dsa_pack_w1(struct ml_dsa_verify_workspace *ctx);
+extern int ml_dsa_get_c_prime(struct ml_dsa_verify_workspace *ctx);
 
 // ---------------------------Functions of Barrett Reductions--------------------------------------------------------------------------------
 // Special constants for Barrett reduction in ML-DSA.
 // The ML-DSA standard (FIPS 204) defines the modulus q = 8380417,
 // but does not mandate a specific reduction algorithm
-
+// (works with secrets or data dependent on a secret)
 #define ML_DSA_BARRETT_ROUND 4194304
 // #define ML_DSA_QINV    58728449
 #define CONST_K   23
@@ -264,7 +288,7 @@ static const s32 ml_dsa_zetas_mont[ML_DSA_N] = {
     -554416,  3919660, -48306, -1362209,  3937738,  1400424, -846154,  1976782
 };
 
-// Montgomery reduction for multiplication
+// Montgomery reduction for multiplication (works with secrets or data dependent on a secret)
 static inline s32 ml_dsa_montgomery_reduce(s64 val)
 {
 	s32 t;
@@ -273,7 +297,7 @@ static inline s32 ml_dsa_montgomery_reduce(s64 val)
 	return (s32)((val - (s64)t * INT64_C(8380417)) >> 32);
 }
 
-// NTT - for representing polynomials in point format
+// NTT - for representing polynomials in point format (works with secrets or data dependent on a secret)
 static inline void ml_dsa_ntt(s32 w[ML_DSA_N])
 {
     size_t m = 0;
@@ -295,7 +319,7 @@ static inline void ml_dsa_ntt(s32 w[ML_DSA_N])
 	 }
 }
  
-// iNTT - for representing polynomials in coefficient format
+// iNTT - for representing polynomials in coefficient format (works with secrets or data dependent on a secret)
 static inline void ml_dsa_intt(s32 w[ML_DSA_N])
 {
     size_t m = 256;
@@ -323,6 +347,7 @@ static inline void ml_dsa_intt(s32 w[ML_DSA_N])
 	 }
 }
 
+// (works with secrets or data dependent on a secret)
 static inline void ml_dsa_canonicalize(s32 w[ML_DSA_N])
 {
     for (size_t i = 0; i < ML_DSA_N; i++)
@@ -330,7 +355,35 @@ static inline void ml_dsa_canonicalize(s32 w[ML_DSA_N])
         w[i] += (w[i] >> 31) & ML_DSA_Q;
     }
 }
-				 
-				 
+
+// Algorith 36 (works with secrets or data dependent on a secret)
+inline void ml_dsa_decompose(s32 *r, s32 gamma2, s32 *r1, s32 *r0)
+{
+    s32 high = (*r + 127) >> 7;
+
+    if (gamma2 == ML_DSA_65_87_GAMMA2) 
+    {
+        high = (high * 1025 + (1 << 21)) >> 22;
+        high &= 15;
+    } else 
+    {
+        high = (high * 11275 + (1 << 23)) >> 24;
+        high ^= ((43 - high) >> 31) & high;
+    }
+
+    s32 low = *r - high * 2 * gamma2;
+    low -= ((ML_DSA_Q_HALF_MINUS_ONE - low) >> 31) & ML_DSA_Q;
+
+    if (r1 != NULL) { *r1 = high; }
+	if (r0 != NULL) { *r0 = low; }
+}				 
+
+// Приведення до модуля q
+static inline s32 ml_dsa_freeze(s32 val)
+{
+    val = ml_dsa_barrett_reduce(val);
+    val += (val >> 31) & ML_DSA_Q;
+    return val;
+}				 
 
 #endif // ML_DSA_CORE_HEADER_H
