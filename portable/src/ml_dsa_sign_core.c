@@ -36,7 +36,7 @@ int get_rho_double_prime(struct ml_dsa_keys *ctx, u8 deterministic, ml_dsa_entro
 	shake_ctx_zero(ctx->workspace->shake);
 	shake_ctx_init(ctx->workspace->shake, ctx->workspace->rho_double_prime, ML_DSA_64_BYTES, ctx->workspace->scratch_buffer, ML_DSA_64_BYTES * 2);
 	shake256(ctx->workspace->shake);
-	ml_dsa_memzero(ctx->workspace->scratch_buffer, ML_DSA_64_BYTES * 2);
+	ml_dsa_memzero(ctx->workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER);
 	
 	return 0;
 }

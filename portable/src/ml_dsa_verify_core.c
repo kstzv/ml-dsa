@@ -164,7 +164,7 @@ int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, u8 *sign)
 		k = sign + (ML_DSA_87_SIZE_SIG - ctx->k); 
 	}else { return -ML_DSA_EINVAL; }
 	
-	ml_dsa_memzero(ctx->scratch_buffer, (size_t)ctx->k * ML_DSA_N); // TODO - визначити розміри scratch_buffer при створенні модуля геенрації памяті
+	ml_dsa_memzero(ctx->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER); // TODO - визначити розміри scratch_buffer при створенні модуля геенрації памяті
     u8 units_ctr = 0;
     for(u8 i = 0; i < ctx->k; i++)
     {

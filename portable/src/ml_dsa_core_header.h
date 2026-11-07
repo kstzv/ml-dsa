@@ -59,6 +59,8 @@
 #define ML_DSA_CALLBACK_ENTROPY_FAILED 135
 #define ML_DSA_EBADSIG                 136
 
+#define MAX_NUMBER_SLOTS 128
+
 #ifndef ML_DSA_FULL_MATRIX_BUFFER
 #define ML_DSA_FULL_MATRIX_BUFFER 0
 #endif
