@@ -7,6 +7,7 @@ bool ml_dsa_get_z(struct ml_dsa_keys *ctx, u8 *out);
 bool ml_dsa_get_r0(struct ml_dsa_keys *ctx);
 bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out);
 void ml_dsa_get_c(struct ml_dsa_keys *ctx, u8 *c);
+void ml_dsa_wipper_sign_struct(struct ml_dsa_workspace *workspace, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 
 static inline size_t pack_for_c_44(struct ml_dsa_keys *ctx);
 static inline size_t pack_for_c_65_87(struct ml_dsa_keys *ctx);
@@ -373,3 +374,36 @@ static inline size_t pack_for_c_65_87(struct ml_dsa_keys *ctx)
     }
     return counter_bytes;
 }
+
+void ml_dsa_wipper_sign_struct(struct ml_dsa_workspace *workspace, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
+{
+	if(!workspace) { return; }
+	
+	if(workspace->temp_vector_buffer) 
+	{
+		size_t size_s32 = k * ML_DSA_N * sizeof(s32); 		  
+		size_s32 += k * ML_DSA_N * sizeof(s32); 		 
+		size_s32 += l * ML_DSA_N * sizeof(s32); 		 
+		size_s32 += ML_DSA_N * sizeof(s32); 		
+		ml_dsa_memzero(workspace->temp_vector_buffer, size_s32);
+	}
+	
+	if(workspace->scratch_buffer) { ml_dsa_memzero(workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER); } 
+	
+	if(workspace->shake) { shake_ctx_zero(ctx->workspace->shake); }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

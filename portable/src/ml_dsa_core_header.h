@@ -139,7 +139,6 @@ enum ml_dsa_level_l {
 };
 
 struct ml_dsa_workspace {
-	s32 *matrix_buffer;
 	s32 *temp_vector_buffer;
 	s32 *vect_w;
 	s32 *vect_y;
@@ -183,7 +182,6 @@ struct ml_dsa_verify_workspace {
     s32 *temp_vector_2;
  
     #if ML_DSA_FULL_MATRIX_BUFFER
-    s32 *matrix_buffer;
     #else
     u8 rho[ML_DSA_32_BYTES];
     #endif
@@ -200,6 +198,10 @@ struct ml_dsa_verify_ctx {
 	struct ml_dsa_verify_workspace *work;
 	size_t size_pool;
 	bool fixed_pk;
+	s32 *t1;
+	#if ML_DSA_FULL_MATRIX_BUFFER
+    s32 *matrix_buffer;
+    #endif
 };
 	
 
@@ -212,7 +214,7 @@ extern int ml_dsa_create_public_data(struct ml_dsa_keys *ctx);
 
 // Internal function from matrix module
 #if ML_DSA_FULL_MATRIX_BUFFER
-extern int get_full_matrix(struct ml_dsa_keys *ctx);
+extern void get_full_matrix(u8 *rho, enum ml_dsa_level_k k, enum ml_dsa_level_l l, struct shake_ctx *shake, s32 *matrix_buffer, u8 *scratch_buffer);
 extern int mult_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 #else
 extern void mult_matrix(u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
@@ -230,6 +232,7 @@ extern bool ml_dsa_get_z(struct ml_dsa_keys *ctx, u8 *out);
 extern bool ml_dsa_get_r0(struct ml_dsa_keys *ctx);
 extern bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out);
 extern void ml_dsa_get_c(struct ml_dsa_keys *ctx, u8 *c);
+extern void ml_dsa_wipper_sign_struct(struct ml_dsa_workspace *workspace, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 
 // from ml_dsa_verify_core.c module
 extern int ml_dsa_unpack_c_z(struct ml_dsa_verify_workspace *ctx, const u8 *sig_msg);
@@ -359,7 +362,7 @@ static inline void ml_dsa_canonicalize(s32 w[ML_DSA_N])
 }
 
 // Algorith 36 (works with secrets or data dependent on a secret)
-inline void ml_dsa_decompose(s32 *r, s32 gamma2, s32 *r1, s32 *r0)
+static inline void ml_dsa_decompose(s32 *r, s32 gamma2, s32 *r1, s32 *r0)
 {
     s32 high = (*r + 127) >> 7;
 

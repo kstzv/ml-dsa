@@ -42,12 +42,6 @@ struct ml_dsa_verify_workspace *ml_dsa_alloc_verify_works_struct(enum ml_dsa_lev
 	int ret = shake_ctx_get_mem(ctx->shake, ctx->shake->state, ML_DSA_SIZE_MEM_KECCAK);
 	if(ret != 0) { goto err_5; }
 	
-	#if ML_DSA_FULL_MATRIX_BUFFER
-	ctx->matrix_buffer = ml_dsa_alloc((ML_DSA_N * k * k) * sizeof(s32));
-	if(!ctx->matrix_buffer) { goto err_5; }
-	ml_dsa_memzero(ctx->matrix_buffer, (ML_DSA_N * k * k) * sizeof(s32));
-	#endif
-	
 	ctx->k = k;
 	ctx->l = l;
 	ctx->next = NULL;
@@ -76,15 +70,11 @@ struct ml_dsa_verify_workspace *ml_dsa_alloc_verify_works_struct(enum ml_dsa_lev
 		inside_ctx->scratch_buffer = ctx->scratch_buffer + scratch_buffer_conter;
 		scratch_buffer_conter += size_scratch_buffer;
 		
-		inside_ctx->shake = ctx->shake + shake_conter;
-		shake_conter++;
+		inside_ctx->shake = ctx->shake + shake_counter;
+		shake_counter++;
 		
 		(void)shake_ctx_get_mem(inside_ctx->shake, ctx->shake->state + shake_mem_conter, ML_DSA_SIZE_MEM_KECCAK);
 		shake_mem_conter += ML_DSA_SIZE_MEM_KECCAK;
-		
-		#if ML_DSA_FULL_MATRIX_BUFFER
-		inside_ctx->matrix_buffer = ctx->matrix_buffer;
-		#endif
 		
 		inside_ctx->k = k;
 		inside_ctx->l = l;
@@ -112,43 +102,9 @@ struct ml_dsa_verify_workspace *ml_dsa_alloc_verify_works_struct(enum ml_dsa_lev
 	return NULL;
 }
 
-
-struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(enum ml_dsa_level_k k, enum ml_dsa_level_l l, size_t number_slots, u8 *pk)
-{
-	if(number_slots == 0 || number_slots > MAX_NUMBER_SLOTS) { return NULL; }
-	struct ml_dsa_verify_workspace *ctx;
-	if(k == ML_DSA_44_K && l != ML_DSA_44_L) { return NULL; }
-	else if(k == ML_DSA_65_K && l != ML_DSA_65_L) { return NULL; }
-	else if(k == ML_DSA_87_K && l != ML_DSA_87_L) { return NULL; }
-	else if(k != ML_DSA_44_K && k != ML_DSA_65_K && k != ML_DSA_87_K) { return NULL; } 
-	else{ ctx = ml_dsa_alloc_verify_works_struct(k, l, number_slots); if(!ctx) { return NULL; } }
-	
-	struct ml_dsa_verify_ctx *pool_ctx;
-	pool_ctx = ml_dsa_alloc(sizeof(struct ml_dsa_verify_ctx));
-	if(!pool_ctx) { destructor_verify_works_struct(ctx, number_slots); return NULL; }
-	
-	pool_ctx->work = ctx;
-	pool_ctx->size_pool = number_slots;
-	
-	if(pk)
-	{
-		// TODO - тут плануєтсья логіка розпакування відкритого ключа та заповнення всіх елементів пулу значенням готових t0 та ін.)
-	}
-	
-	return pool_ctx;
-}
-
 void destructor_verify_works_struct(struct ml_dsa_verify_workspace *ctx, size_t size_pool)
 {
 	if(!ctx) { return; }
-	
-	#if ML_DSA_FULL_MATRIX_BUFFER
-	if(ctx->matrix_buffer)
-	{
-		ml_dsa_memzero(ctx->matrix_buffer, (ML_DSA_N * ctx->k * ctx->k) * sizeof(s32));
-		ml_dsa_free(ctx->matrix_buffer);
-	}
-	#endif
 	
 	if(ctx->poly_c)
 	{
@@ -178,15 +134,6 @@ void destructor_verify_works_struct(struct ml_dsa_verify_workspace *ctx, size_t 
 	}
 	
 	ml_dsa_memzero(ctx, sizeof(struct ml_dsa_verify_workspace) * size_pool);
-	ml_dsa_free(ctx);
-}
-
-void destructor_verify_pool(struct ml_dsa_verify_ctx *ctx)
-{
-	if(!ctx || !ctx->work) { return; }
-	
-	destructor_verify_works_struct(ctx->work, ctx->size_pool);
-	
 	ml_dsa_free(ctx);
 }
 	

@@ -152,19 +152,21 @@ int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, u8 *sign)
 		omega = ML_DSA_OMEGA_44; 
 		ptr_h = sign + (ML_DSA_44_SIZE_SIG - (ML_DSA_OMEGA_44 + ctx->k)); 
 		k = sign + (ML_DSA_44_SIZE_SIG - ctx->k); 
+		ml_dsa_memzero(ctx->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER);
 	}else if(ctx->k == ML_DSA_65_K) 
 	{ 
 		omega = ML_DSA_OMEGA_65;
 		ptr_h = sign + (ML_DSA_65_SIZE_SIG - (ML_DSA_OMEGA_65 + ctx->k)); 
 		k = sign + (ML_DSA_65_SIZE_SIG - ctx->k); 
+		ml_dsa_memzero(ctx->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER + 512);
 	}else if(ctx->k == ML_DSA_87_K) 
 	{ 
 		omega = ML_DSA_OMEGA_87; 
 		ptr_h = sign + (ML_DSA_87_SIZE_SIG - (ML_DSA_OMEGA_87 + ctx->k)); 
 		k = sign + (ML_DSA_87_SIZE_SIG - ctx->k); 
+		ml_dsa_memzero(ctx->scratch_buffer, 2 * ML_DSA_SIZE_SCRATCH_BUFFER);
 	}else { return -ML_DSA_EINVAL; }
-	
-	ml_dsa_memzero(ctx->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER); // TODO - визначити розміри scratch_buffer при створенні модуля геенрації памяті
+
     u8 units_ctr = 0;
     for(u8 i = 0; i < ctx->k; i++)
     {
@@ -235,13 +237,13 @@ int ml_dsa_get_c_prime(struct ml_dsa_verify_workspace *ctx)
 	memcpy(first_rate, ctx->mu, ML_DSA_64_BYTES);
 	memcpy(first_rate + ML_DSA_64_BYTES, ctx->scratch_buffer, 136 - ML_DSA_64_BYTES);
 	
-	shake_ctx_zero(shake);
-	shake_ctx_init(shake, ctx->mu, size_lambda, first_rate, 136);
+	shake_ctx_zero(ctx->shake);
+	shake_ctx_init(ctx->shake, ctx->mu, size_lambda, first_rate, 136);
 	shake->rate = 136;
-	shake_absorb(shake);
+	shake_absorb(ctx->shake);
 	shake->in = ctx->scratch_buffer + (136 - ML_DSA_64_BYTES);
 	shake->inlen = size_w1_bytes - (136 - ML_DSA_64_BYTES);
-	shake256(shake);
+	shake256(ctx->shake);
 	
 	for(u8 i = 0; i < size_lambda; i++)
 	{

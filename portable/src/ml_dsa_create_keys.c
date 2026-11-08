@@ -44,37 +44,16 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	if(!ctx->workspace) { goto err_5; }
 	ml_dsa_memzero(ctx->workspace, sizeof(struct ml_dsa_workspace));
 	
-	// Allocations buffer for matrix
-	#if ML_DSA_FULL_MATRIX_BUFFER
-	
-	size_t size_s32 = l * k * ML_DSA_N * sizeof(s32); // For matrix
-	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For temp vector
-	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For w vector
-	size_s32 += l * ML_DSA_N * sizeof(s32); 		  // For y vector
-	size_s32 += ML_DSA_N * sizeof(s32); 		  	  // For c poly
-	ctx->workspace->matrix_buffer = ml_dsa_alloc(size_s32);
-	if(!ctx->workspace->matrix_buffer) { goto err_6; }
-	ctx->workspace->temp_vector_buffer = ctx->workspace->matrix_buffer + (l * k * ML_DSA_N);
-	ctx->workspace->vect_w = ctx->workspace->temp_vector_buffer + (k * ML_DSA_N);
-	ctx->workspace->vect_y = ctx->workspace->vect_w + (k * ML_DSA_N);
-	ctx->workspace->poly_c = ctx->workspace->vect_y + (l * ML_DSA_N);
-	ml_dsa_memzero(ctx->workspace->matrix_buffer, size_s32);
-	
-	#else
-	
 	size_t size_s32 = k * ML_DSA_N * sizeof(s32); 	  // For temp vector
 	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For w vector
 	size_s32 += l * ML_DSA_N * sizeof(s32); 		  // For y vector
 	size_s32 += ML_DSA_N * sizeof(s32); 		  	  // For c poly
-	ctx->workspace->matrix_buffer = NULL;
 	ctx->workspace->temp_vector_buffer = ml_dsa_alloc(size_s32);
 	if(!ctx->workspace->temp_vector_buffer) { goto err_6; }
 	ctx->workspace->vect_w = ctx->workspace->temp_vector_buffer + (k * ML_DSA_N);
 	ctx->workspace->vect_y = ctx->workspace->vect_w + (k * ML_DSA_N);
 	ctx->workspace->poly_c = ctx->workspace->vect_y + (l * ML_DSA_N);
 	ml_dsa_memzero(ctx->workspace->temp_vector_buffer, size_s32);
-	
-	#endif
 	
 	// For temp u8 buffer
 	ctx->workspace->scratch_buffer = ml_dsa_alloc(ML_DSA_SIZE_SCRATCH_BUFFER);
@@ -94,8 +73,7 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	err_8:
 		ml_dsa_free(ctx->workspace->scratch_buffer);
 	err_7:
-		if(ctx->workspace->matrix_buffer) { ml_dsa_free(ctx->workspace->matrix_buffer); }
-		else { ml_dsa_free(ctx->workspace->temp_vector_buffer); }
+		ml_dsa_free(ctx->workspace->temp_vector_buffer);
 	err_6:
 		ml_dsa_free(ctx->workspace);
 	err_5:
@@ -108,72 +86,6 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 		ml_dsa_free(ctx);
 	err_1:
 		return NULL;
-}
-
-// Key destructor, secret reset, and memory cleanup
-void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
-{
-	if(!ctx) { return; }
-	
-	if(ctx->s1) 
-	{
-		ml_dsa_memzero(ctx->s1, (ctx->l + ctx->k) * ML_DSA_N * sizeof(s32));
-		ml_dsa_free(ctx->s1); 
-	}
-	
-	if(ctx->t0) 
-	{ 
-		ml_dsa_memzero(ctx->t0, (2 * ctx->k * ML_DSA_N) * sizeof(s32));
-		ml_dsa_free(ctx->t0);
-	}
-	
-	if(ctx->pk) { ml_dsa_free(ctx->pk); }
-	
-	if(ctx->workspace && ctx->workspace->matrix_buffer)
-	{
-		size_t size_s32 = ctx->l * ctx->k * ML_DSA_N * sizeof(s32); 
-		size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		  
-		size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		 
-		size_s32 += ctx->l * ML_DSA_N * sizeof(s32); 		 
-		size_s32 += ML_DSA_N * sizeof(s32); 		  	  
-		ml_dsa_memzero(ctx->workspace->matrix_buffer, size_s32);
-		ml_dsa_free(ctx->workspace->matrix_buffer);
-		ctx->workspace->temp_vector_buffer = NULL;
-	}
-	
-	if(ctx->workspace && ctx->workspace->temp_vector_buffer)
-	{
-		size_t size_s32 = ctx->k * ML_DSA_N * sizeof(s32); 		  
-		size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		 
-		size_s32 += ctx->l * ML_DSA_N * sizeof(s32); 		 
-		size_s32 += ML_DSA_N * sizeof(s32); 		
-		ml_dsa_memzero(ctx->workspace->temp_vector_buffer, size_s32);
-		ml_dsa_free(ctx->workspace->temp_vector_buffer);
-	}
-	
-	if(ctx->workspace && ctx->workspace->scratch_buffer)
-	{
-		ml_dsa_memzero(ctx->workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER);
-		ml_dsa_free(ctx->workspace->scratch_buffer);
-	}
-	
-	if(ctx->workspace && ctx->workspace->shake)
-	{
-		if(ctx->workspace->shake->state)
-		{
-			shake_ctx_zero(ctx->workspace->shake);
-			ml_dsa_free(ctx->workspace->shake->state);
-		}
-		ml_dsa_free(ctx->workspace->shake);
-	}
-		
-	
-	 ml_dsa_memzero(ctx->K, ML_DSA_32_BYTES);
-	 ml_dsa_memzero(ctx->rho, ML_DSA_32_BYTES);
-	 ml_dsa_memzero(ctx->tr, ML_DSA_64_BYTES);
-	 
-	 ml_dsa_free(ctx->workspace);
-	 ml_dsa_free(ctx); 
 }
 
 // The function for generating a primary seed and obtaining values 
