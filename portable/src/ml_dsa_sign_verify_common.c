@@ -1,11 +1,11 @@
 // A module of internal functions used in both signing and verification - ml_dsa_sign_verify_common.c
 #include "ml_dsa_core_header.h"
 
-void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const uint8_t *msg, size_t msg_len, const uint8_t *context, size_t context_len, u8 prehash);
+void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, u8 prehash);
 void ml_dsa_get_w1(const s32 *w, s32 *w1, const u8 *h, enum ml_dsa_level_k k);
 void ml_dsa_get_poly_c(s32 *poly_c, u8 *c, struct shake_ctx *shake, enum ml_dsa_level_k k);
 
-void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const uint8_t *msg, size_t msg_len, const uint8_t *context, size_t context_len, u8 prehash)
+void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, u8 prehash)
 {
 	// buffer for first three rate (136 * 3 = 408)
 	u8 first_rate[408]; 

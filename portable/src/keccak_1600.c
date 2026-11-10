@@ -1,6 +1,6 @@
 #include "shake.h"
 
-static const uint64_t keccak_rc[24] = {
+static const u64 keccak_rc[24] = {
     0x0000000000000001ULL,
     0x0000000000008082ULL,
     0x800000000000808AULL,
@@ -27,19 +27,19 @@ static const uint64_t keccak_rc[24] = {
     0x8000000080008008ULL
 };
 	
-static inline uint64_t rotl64(uint64_t x, unsigned n)
+static inline u64 rotl64(u64 x, unsigned n)
 {
     return (x << n) | (x >> (64 - n));
 }
 
-static inline void keccak_theta(uint64_t s[25]);
-static inline void keccak_rho(uint64_t s[25]);
-static inline void keccak_pi(uint64_t s[25]);
-static inline void keccak_chi(uint64_t s[25]);
-static inline void keccak_iota(uint64_t s[25], unsigned round);
+static inline void keccak_theta(u64 s[25]);
+static inline void keccak_rho(u64 s[25]);
+static inline void keccak_pi(u64 s[25]);
+static inline void keccak_chi(u64 s[25]);
+static inline void keccak_iota(u64 s[25], unsigned round);
 
 // general func
-void keccak_f1600(uint64_t s[25])
+void keccak_f1600(u64 s[25])
 {
     for (unsigned round = 0; round < 24; round++) 
     {
@@ -51,10 +51,10 @@ void keccak_f1600(uint64_t s[25])
     }
 }
 
-static inline void keccak_theta(uint64_t s[25])
+static inline void keccak_theta(u64 s[25])
 {
-    uint64_t c[5];
-    uint64_t d[5];
+    u64 c[5];
+    u64 d[5];
 
     c[0] = s[0] ^ s[5] ^ s[10] ^ s[15] ^ s[20];
     c[1] = s[1] ^ s[6] ^ s[11] ^ s[16] ^ s[21];
@@ -99,7 +99,7 @@ static inline void keccak_theta(uint64_t s[25])
     s[24] ^= d[4];
 }
 
-static inline void keccak_rho(uint64_t s[25])
+static inline void keccak_rho(u64 s[25])
 {
     // s[0] rotate 0 -- nothing to do
     s[1] = rotl64(s[1], 1);
@@ -132,9 +132,9 @@ static inline void keccak_rho(uint64_t s[25])
     s[24] = rotl64(s[24], 14);
 }
 
-static inline void keccak_pi(uint64_t s[25])
+static inline void keccak_pi(u64 s[25])
 {
-    uint64_t t = s[1];
+    u64 t = s[1];
 
     s[1]  = s[6];
     s[6]  = s[9];
@@ -164,9 +164,9 @@ static inline void keccak_pi(uint64_t s[25])
     // s[0] remains in place
 }
 
-static inline void keccak_chi(uint64_t s[25])
+static inline void keccak_chi(u64 s[25])
 {
-    uint64_t a0, a1, a2, a3, a4;
+    u64 a0, a1, a2, a3, a4;
 
 
     a0 = s[0];
@@ -234,7 +234,7 @@ static inline void keccak_chi(uint64_t s[25])
     s[24] = a4 ^ ((~a0) & a1);
 }
 
-static inline void keccak_iota(uint64_t s[25], unsigned round)
+static inline void keccak_iota(u64 s[25], unsigned round)
 {
     s[0] ^= keccak_rc[round];
 }		

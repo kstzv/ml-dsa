@@ -10,7 +10,11 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stdatomic.h>
 
+// Atomic type for implementation
+typedef atomic_int ml_dsa_atomic_t;
 
 // ^>^^>^^^>^^^^>^^^^^>^^^^^^>^^^^^^^>^^^^^^^^>^^^^^^^^^>^^^^^^^^^^>^^^^^^^^^^^>^^^^^^^^^^^^>^^^^^^^^^^^^^
 // Prototypes of functions that depend on a this platform

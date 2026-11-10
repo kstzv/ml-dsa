@@ -1,23 +1,22 @@
 #ifndef SHAKE_H
 #define SHAKE_H
 
-#include <stdint.h>
-#include <stddef.h>
+#include "ml_dsa_core_header.h"
 
 struct shake_ctx {
-    uint64_t *state;
+    u64 *state;
     size_t rate;
     size_t pos;
 
-    const uint8_t *in;
+    const u8 *in;
     size_t inlen;
 
-    uint8_t *out;
+    u8 *out;
     size_t outlen;
 };
 
-int shake_ctx_get_mem(struct shake_ctx *ctx, uint64_t *state, size_t size_mem);
-void shake_ctx_init(struct shake_ctx *ctx,uint8_t *out, size_t outlen, const uint8_t *in, size_t inlen);
+int shake_ctx_get_mem(struct shake_ctx *ctx, u64 *state, size_t size_mem);
+void shake_ctx_init(struct shake_ctx *ctx, u8 *out, size_t outlen, const u8 *in, size_t inlen);
 void shake_ctx_zero(struct shake_ctx *ctx);
 void shake128(struct shake_ctx *ctx);
 void shake256(struct shake_ctx *ctx);
@@ -26,6 +25,6 @@ void shake_absorb(struct shake_ctx *ctx);
 void shake_finalize(struct shake_ctx *ctx);
 void shake_squeeze(struct shake_ctx *ctx);
 
-void keccak_f1600(uint64_t s[25]);
+void keccak_f1600(u64 s[25]);
 
 #endif

@@ -47,6 +47,10 @@
 #define ML_DSA_65_SIZE_PK 1952
 #define ML_DSA_87_SIZE_PK 2592
 
+#define ML_DSA_44_SIZE_SK 2560
+#define ML_DSA_65_SIZE_SK 4032
+#define ML_DSA_87_SIZE_SK 4896
+
 #define ML_DSA_SIZE_SCRATCH_BUFFER 1088
 #define ML_DSA_SIZE_MAX_CONTEXT    255
 #define ML_DSA_PREHASH_OID_SIZE    11
@@ -63,28 +67,6 @@
 
 #ifndef ML_DSA_FULL_MATRIX_BUFFER
 #define ML_DSA_FULL_MATRIX_BUFFER 0
-#endif
-
-// for SIMD-frendly
-#ifndef ML_DSA_SIMD
-#error "ML_DSA_SIMD must be defined"
-#endif
-
-#define ML_DSA_SIZE_KECCAK_SIMD_1 25
-#define ML_DSA_SIZE_KECCAK_SIMD_2 50
-#define ML_DSA_SIZE_KECCAK_SIMD_4 100
-
-#if ML_DSA_SIMD == 1
-#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_1
-#include "shake.h"
-#elif ML_DSA_SIMD == 2
-#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_2
-#include "shake_x2.h"
-#elif ML_DSA_SIMD == 4
-#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_4
-#include "shake_x4.h"
-#else 
-#error "You need to specify 1, 2, or 4 for SIMD"
 #endif
 
 // HEADERS
@@ -104,6 +86,29 @@
 #error "No ML-DSA port selected."
 #endif // HEADERS
 
+// for SIMD-frendly
+#ifndef ML_DSA_SIMD
+#error "ML_DSA_SIMD must be defined"
+#endif
+
+#define ML_DSA_SIZE_KECCAK_SIMD_1 25
+#define ML_DSA_SIZE_KECCAK_SIMD_2 50
+#define ML_DSA_SIZE_KECCAK_SIMD_4 100
+
+// Подумати над організацією заголовків, уникнення циклічної залежності 
+#if ML_DSA_SIMD == 1
+#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_1
+#include "shake.h"
+#elif ML_DSA_SIMD == 2
+#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_2
+#include "shake_x2.h"
+#elif ML_DSA_SIMD == 4
+#define ML_DSA_SIZE_MEM_KECCAK ML_DSA_SIZE_KECCAK_SIMD_4
+#include "shake_x4.h"
+#else 
+#error "You need to specify 1, 2, or 4 for SIMD"
+#endif
+
 static const u8 oid_shake256[11] = {
     0x06, 0x09, 0x60, 0x86, 0x48, 0x01,
     0x65, 0x03, 0x04, 0x02, 0x0C
@@ -118,12 +123,26 @@ static const u8 oid_shake256[11] = {
 //   non-zero on failure
 typedef int (*ml_dsa_entropy_fn)(void *buf, size_t len);
 
+// Port for allocations(get memory)
 extern void *ml_dsa_alloc(size_t size_alloc);
 extern void ml_dsa_free(void *ptr);
 
 extern void ml_dsa_memzero(void *ptr, size_t len);
 extern int ml_dsa_entropy(void *buf, size_t len);
 
+// error handling
+struct ml_dsa_keys *err_create_keys(const u16 err);
+int err_ml_dsa_sign(const int err);
+int err_ml_dsa_verify(const int err);
+struct ml_dsa_verify_ctx *err_ml_dsa_alloc_verify_pool(const int err);
+int err_ml_dsa_get_pk(const int err);
+int err_ml_dsa_get_sk(const int err);
+struct ml_dsa_keys *err_ml_dsa_create_keys_object_from_imported_sk(const int err);
+
+// Atomic operations
+bool ml_dsa_try_acquire_slot(ml_dsa_atomic_t *slot);
+void ml_dsa_release_slot(ml_dsa_atomic_t *slot);
+void ml_dsa_atomic_init_slot(ml_dsa_atomic_t *slot);
 
 // Paramentr for level sequrity
 enum ml_dsa_level_k {
@@ -208,20 +227,20 @@ struct ml_dsa_verify_ctx {
 // Internal functions from module create keys
 extern struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 extern void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx);
-extern int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy);
+extern int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy, bool get_seed, u8 *seed, size_t size_seed);
 extern int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t);
 extern int ml_dsa_create_public_data(struct ml_dsa_keys *ctx);
 
 // Internal function from matrix module
 #if ML_DSA_FULL_MATRIX_BUFFER
 extern void get_full_matrix(u8 *rho, enum ml_dsa_level_k k, enum ml_dsa_level_l l, struct shake_ctx *shake, s32 *matrix_buffer, u8 *scratch_buffer);
-extern int mult_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
-#else
-extern void mult_matrix(u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
+extern int mult_full_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 #endif
+extern void mult_matrix(u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
+
 
 // from ml_dsa_sign_verify_common.c module
-extern void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const uint8_t *msg, size_t msg_len, const uint8_t *context, size_t context_len, u8 prehash);
+extern void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, u8 prehash);
 extern void ml_dsa_get_w1(const s32 *w, s32 *w1, const u8 *h, enum ml_dsa_level_k k);
 extern void ml_dsa_get_poly_c(s32 *poly_c, u8 *c, struct shake_ctx *shake, enum ml_dsa_level_k k);
 
@@ -240,6 +259,10 @@ extern void ml_dsa_unpack_pk(s32 * t1, const u8 *pk_msg, enum ml_dsa_level_k k);
 extern int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, u8 *sign);
 extern int ml_dsa_pack_w1(struct ml_dsa_verify_workspace *ctx);
 extern int ml_dsa_get_c_prime(struct ml_dsa_verify_workspace *ctx);
+
+// From verify mem module
+extern struct ml_dsa_verify_workspace *ml_dsa_alloc_verify_works_struct(enum ml_dsa_level_k k, enum ml_dsa_level_l l, size_t number_slots);
+extern void destructor_verify_works_struct(struct ml_dsa_verify_workspace *ctx, size_t size_pool);
 
 // ---------------------------Functions of Barrett Reductions--------------------------------------------------------------------------------
 // Special constants for Barrett reduction in ML-DSA.

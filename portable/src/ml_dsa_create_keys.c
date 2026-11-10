@@ -4,7 +4,7 @@
 
 struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx);
-int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy);
+int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy, bool get_seed, u8 *seed, size_t size_seed);
 int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t);
 
 static inline void ml_dsa_pack_t1(u8 *out, const s32 *t);
@@ -91,18 +91,32 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 // The function for generating a primary seed and obtaining values 
 // ​For the following key structure fields: ρ, K, s1 and s2
 // (works with secrets or data dependent on a secret)
-int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy)
+int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy, bool get_seed, u8 *seed, size_t size_seed)
 {
+	if(get_seed == 1 && (!seed || size_seed != ML_DSA_32_BYTES)) { return ML_DSA_EINVAL; }
+	if(!ctx) { return ML_DSA_EINVAL; }
 	// Buffers for first and expanded seeds 
 	u8 first_seed[ML_DSA_32_BYTES + 2];
 	u8 out_first_seed[ML_DSA_32_BYTES * 2 + ML_DSA_64_BYTES];
 	
 	// Check and use entropy
-	if(entropy == NULL)
-	{
-		if(ml_dsa_entropy(first_seed, ML_DSA_32_BYTES) != 0) { return ML_DSA_SYSTEM_ENTROPY_FAILED; }
-	}else{
-		if(entropy(first_seed, ML_DSA_32_BYTES) != 0) { return ML_DSA_CALLBACK_ENTROPY_FAILED; }
+	if(get_seed == 1) 
+	{ 
+		memcpy(first_seed, seed, ML_DSA_32_BYTES); 
+	}else if(entropy == NULL)
+	{ 
+		if(ml_dsa_entropy(first_seed, ML_DSA_32_BYTES) != 0) 
+		{ 
+			ml_dsa_memzero(first_seed, ML_DSA_32_BYTES);
+			return ML_DSA_SYSTEM_ENTROPY_FAILED; 
+		} 
+	}else
+	{ 
+		if(entropy(first_seed, ML_DSA_32_BYTES) != 0) 
+		{ 
+			ml_dsa_memzero(first_seed, ML_DSA_32_BYTES);
+			return ML_DSA_CALLBACK_ENTROPY_FAILED; 
+		} 
 	}
 	
 	// Set k and l

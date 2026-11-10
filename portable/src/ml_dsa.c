@@ -23,7 +23,7 @@ struct ml_dsa_keys *ml_dsa_create_keys(u8 level, ml_dsa_entropy_fn entropy)
 	ctx = ml_dsa_alloc_struct_keys(k, l);
 	if(!ctx) { ret = ML_DSA_ENOMEM; goto err_1; }
 	
-	ret = get_rho_K_s1_s2(ctx, entropy);
+	ret = get_rho_K_s1_s2(ctx, entropy, 0, NULL, 0);
 	if(ret != 0) { goto err_2; }
 
 	// Here should be copy s1 before NTT(it is can do in vect_y - temp)
@@ -62,7 +62,7 @@ struct ml_dsa_keys *ml_dsa_create_keys(u8 level, ml_dsa_entropy_fn entropy)
 	err_2:
 		ml_dsa_destroy_struct_keys(ctx);
 	err_1:
-		return err_create_keys(ret);
+		return err_create_keys(-ret);
 }
 
 // Key destructor, secret reset, and memory cleanup
@@ -119,22 +119,22 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 	
 int ml_dsa_sign(struct ml_dsa_keys *ctx, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, u8 *sig, size_t sig_len, u8 prehash, u8 deterministic, ml_dsa_entropy_fn entropy)
 {
-	if(!ctx || !ctx->workspace || !ctx->workspace->shake) { return ML_DSA_EINVAL; }
-	else if((!msg && msg_len) || !sig) { return ML_DSA_EINVAL; }
-	else if(context_len > ML_DSA_SIZE_MAX_CONTEXT) { return ML_DSA_EINVAL; }
-	else if(context_len != 0 && !context) { return ML_DSA_EINVAL; }
-	else if(ctx->k == ML_DSA_44_K && sig_len < ML_DSA_44_SIZE_SIG) { return ML_DSA_EINVAL; }
-	else if(ctx->k == ML_DSA_65_K && sig_len < ML_DSA_65_SIZE_SIG) { return ML_DSA_EINVAL; }
-	else if(ctx->k == ML_DSA_87_K && sig_len < ML_DSA_87_SIZE_SIG) { return ML_DSA_EINVAL; }
-	else if(deterministic > 1) { return ML_DSA_EINVAL; }
-	else if(prehash > 1) { return ML_DSA_EINVAL; }
+	if(!ctx || !ctx->workspace || !ctx->workspace->shake) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if((!msg && msg_len) || !sig) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if(context_len > ML_DSA_SIZE_MAX_CONTEXT) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if(context_len != 0 && !context) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if(ctx->k == ML_DSA_44_K && sig_len < ML_DSA_44_SIZE_SIG) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if(ctx->k == ML_DSA_65_K && sig_len < ML_DSA_65_SIZE_SIG) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if(ctx->k == ML_DSA_87_K && sig_len < ML_DSA_87_SIZE_SIG) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if(deterministic > 1) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if(prehash > 1) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
 	
 	int ret = 0;
 	
 	// Create mu
 	get_mu(ctx->workspace->shake, ctx->workspace->mu, ctx->tr, msg, msg_len, context, context_len, prehash);
 	ret = get_rho_double_prime(ctx, deterministic, entropy);
-	if(ret != 0) { return ret; }
+	if(ret != 0) { return err_ml_dsa_sign(-ret); }
 	
 	
 	u32 kappa = 0;
@@ -175,15 +175,15 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const u8 *msg, size_t msg_len, const u8
 	{ 
 		ml_dsa_wipper_sign_struct(ctx->workspace, ctx->k, ctx->l); 
 		ml_dsa_memzero(sig, sig_len);
-		ret = ML_DSA_EAGAIN; 
+		return err_ml_dsa_sign(-ML_DSA_EAGAIN); 
 	}
 	
-	return ret;
+	return 0;
 }
 
 int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, const u8 *sig, size_t sig_len, u8 prehash)
 {
-	if(!pk || (!msg && msg_len) || (!context && context_len) || !sig || context_len > ML_DSA_SIZE_MAX_CONTEXT || prehash > 1) { return ML_DSA_EINVAL; }
+	if(!pk || (!msg && msg_len) || (!context && context_len) || !sig || context_len > ML_DSA_SIZE_MAX_CONTEXT || prehash > 1) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
 	
 	enum ml_dsa_level_k k;
 	enum ml_dsa_level_l l;
@@ -199,22 +199,40 @@ int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, co
 	{
 		k = ML_DSA_87_K;
 		l = ML_DSA_87_L;
-	}else { return ML_DSA_EINVAL; }
+	}else { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
 	
-	struct ml_dsa_verify_workspace *inside_ctx;
-	bool fixed_pk = 0;
-	if(!ctx) 
-	{ 
-		inside_ctx = ml_dsa_alloc_verify_works_struct(k, l, 1);
-		if(!inside_ctx) { return -ML_DSA_ENOMEM; }
-	}else if(ctx->size_pool == 0 || !ctx->work) { return -ML_DSA_EINVAL; }
-	else
+	// Validate verification pool
+	if(ctx)
 	{
-	// TODO тут плануються атомарні операції із підписом, це в процесі, буде присвоєно захоплену робочу структуру із пулу для inside_ctx і якщо ключ відомий то fixed_pk = 1;
+		if(ctx->size_pool == 0 || !ctx->work) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
+		if(ctx->work[0].k != k || ctx->work[0].l != l) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
 	}
 	
+	// Initialize local verification state
+	struct ml_dsa_verify_workspace *inside_ctx = NULL;
+	bool fixed_pk = 0;
+
+	if(!ctx)
+	{
+		inside_ctx = ml_dsa_alloc_verify_works_struct(k, l, 1);
+		if(!inside_ctx) { return err_ml_dsa_verify(-ML_DSA_ENOMEM); }
+	}else
+	{
+		for(size_t i = 0; i < ctx->size_pool; i++)
+		{
+			if(ml_dsa_try_acquire_slot(&ctx->work[i].is_free))
+			{
+				inside_ctx = &ctx->work[i];
+				if(ctx->fixed_pk) { fixed_pk = 1; } 
+				break;
+			}
+		}
+	}
+
+    if(!inside_ctx) { return err_ml_dsa_verify(-ML_DSA_EAGAIN); }
+		
 	int ret = ml_dsa_unpack_c_z(inside_ctx, sig);
-	if(ret != 0) { goto exit; }
+	if(ret != 0) { goto err; }
 	for(size_t i = 0; i < l; i++) { ml_dsa_ntt(inside_ctx->temp_vector_1 + i * ML_DSA_N); }
 	
 	if(!fixed_pk) 
@@ -230,11 +248,11 @@ int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, co
 	
 	if(!fixed_pk) 
 	{
-		mult_matrix(pk, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l);
+		mult_matrix(ctx->matrix_buffer, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->k, inside_ctx->l);
 	}else
 	{
-		ret = mult_matrix(ctx->matrix_buffer, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->k, inside_ctx->l);
-		if(ret != 0) { goto exit; }
+		ret = mult_full_matrix(pk, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l);
+		if(ret != 0) { goto err; }
 	}
 	
 	#else
@@ -274,38 +292,47 @@ int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, co
 	
 	for(size_t i = 0; i < inside_ctx->k; i++) { ml_dsa_intt(inside_ctx->temp_vector_2 + i * ML_DSA_N); } // get 𝐰Approx
 	ret = ml_dsa_unpack_h(inside_ctx, sig);
-	if(ret != 0) { goto exit; }
+	if(ret != 0) { goto err; }
 	for(size_t i = 0; i < ML_DSA_N * inside_ctx->k; i++) { inside_ctx->temp_vector_2[i] = ml_dsa_freeze(inside_ctx->temp_vector_2[i]); }
 	ml_dsa_get_w1(inside_ctx->temp_vector_2, inside_ctx->temp_vector_1, inside_ctx->scratch_buffer, inside_ctx->k);
 	ret = ml_dsa_pack_w1(inside_ctx);
-	if(ret != 0) { goto exit; }
+	if(ret != 0) { goto err; }
 	
+	// Тут слід буде продумати вихід та позначення 0 чи 1 в ситуації коли був отримано результат збігу чи ні
 	ret = ml_dsa_get_c_prime(inside_ctx);
 		
-	exit:
+	err:
 		if(!ctx) { destructor_verify_works_struct(inside_ctx, 1); }
-		else
-		{
-			// TODO - тут буде функція атомарного звільнення слоту
-		}
+		else { ml_dsa_release_slot(&inside_ctx->is_free); }
 		
-		return ret;
+		return err_ml_dsa_verify(ret);
 }
 	
 // Створення пулу верифікацій
-struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(enum ml_dsa_level_k k, enum ml_dsa_level_l l, size_t number_slots, u8 *pk, size_t size_pk)
+struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(u8 level, size_t number_slots, u8 *pk, size_t size_pk)
 {
-	if(number_slots == 0 || number_slots > MAX_NUMBER_SLOTS) { return NULL; }
+	enum ml_dsa_level_k k;
+	enum ml_dsa_level_l l;
+	int ret = 0;
+	
+	if(level == 44 || level == 4) { k = ML_DSA_44_K; l = ML_DSA_44_L; }
+	else if(level == 65 || level == 6) { k = ML_DSA_65_K; l = ML_DSA_65_L; }
+	else if(level == 87 || level == 8) { k = ML_DSA_87_K; l = ML_DSA_87_L; }
+	else { return err_ml_dsa_alloc_verify_pool(-ML_DSA_EINVAL); }
+	
+	if(k == ML_DSA_44_K && pk && size_pk != ML_DSA_44_SIZE_PK) { return err_ml_dsa_alloc_verify_pool(-ML_DSA_EINVAL); }
+	if(k == ML_DSA_65_K && pk && size_pk != ML_DSA_65_SIZE_PK) { return err_ml_dsa_alloc_verify_pool(-ML_DSA_EINVAL); }
+	if(k == ML_DSA_87_K && pk && size_pk != ML_DSA_87_SIZE_PK) { return err_ml_dsa_alloc_verify_pool(-ML_DSA_EINVAL); }
+	
+	if(number_slots == 0 || number_slots > MAX_NUMBER_SLOTS) { return err_ml_dsa_alloc_verify_pool(-ML_DSA_EINVAL); }
+	
 	struct ml_dsa_verify_workspace *ctx;
-	if(k == ML_DSA_44_K && l != ML_DSA_44_L) { return NULL; }
-	else if(k == ML_DSA_65_K && l != ML_DSA_65_L) { return NULL; }
-	else if(k == ML_DSA_87_K && l != ML_DSA_87_L) { return NULL; }
-	else if(k != ML_DSA_44_K && k != ML_DSA_65_K && k != ML_DSA_87_K) { return NULL; } 
-	else{ ctx = ml_dsa_alloc_verify_works_struct(k, l, number_slots); if(!ctx) { return NULL; } }
+	ctx = ml_dsa_alloc_verify_works_struct(k, l, number_slots); 
+	if(!ctx) { return err_ml_dsa_alloc_verify_pool(-ML_DSA_ENOMEM); }
 	
 	struct ml_dsa_verify_ctx *pool_ctx;
 	pool_ctx = ml_dsa_alloc(sizeof(struct ml_dsa_verify_ctx));
-	if(!pool_ctx) { goto err_1; }
+	if(!pool_ctx) { ret = ML_DSA_ENOMEM; goto err_1; }
 	ml_dsa_memzero(pool_ctx, sizeof(struct ml_dsa_verify_ctx));
 	
 	pool_ctx->work = ctx;
@@ -313,9 +340,9 @@ struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(enum ml_dsa_level_k k, enum m
 	
 	if(pk)
 	{
-		if(k == ML_DSA_44_K && size_pk != ML_DSA_44_SIZE_PK) { goto err_2; }
-		if(k == ML_DSA_65_K && size_pk != ML_DSA_65_SIZE_PK) { goto err_2; }
-		if(k == ML_DSA_87_K && size_pk != ML_DSA_87_SIZE_PK) { goto err_2; }
+		if(k == ML_DSA_44_K && size_pk != ML_DSA_44_SIZE_PK) { ret = ML_DSA_EINVAL; goto err_2; }
+		if(k == ML_DSA_65_K && size_pk != ML_DSA_65_SIZE_PK) { ret = ML_DSA_EINVAL; goto err_2; }
+		if(k == ML_DSA_87_K && size_pk != ML_DSA_87_SIZE_PK) { ret = ML_DSA_EINVAL; goto err_2; }
 		
 		size_t size_mem_alloc = k * ML_DSA_N * sizeof(s32);
 		#if ML_DSA_FULL_MATRIX_BUFFER
@@ -323,7 +350,7 @@ struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(enum ml_dsa_level_k k, enum m
 		#endif
 		
 		pool_ctx->t1 = ml_dsa_alloc(size_mem_alloc);
-		if(!pool_ctx->t1) { goto err_2; }
+		if(!pool_ctx->t1) { ret = ML_DSA_ENOMEM; goto err_2; }
 		ml_dsa_unpack_pk(pool_ctx->t1, pk, k);
 		for(size_t i = 0; i < k; i++) { ml_dsa_ntt(pool_ctx->t1 + i * ML_DSA_N); }
 		
@@ -344,16 +371,18 @@ struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(enum ml_dsa_level_k k, enum m
 		pool_ctx->fixed_pk = 1;
 	}else { pool_ctx->t1 = NULL; pool_ctx->fixed_pk = 0; }
 	
+	for(size_t i = 0; i < number_slots; i++) { ml_dsa_atomic_init_slot(&pool_ctx->work[i].is_free); }
+	
 	return pool_ctx;
 	
 	err_2:
 		ml_dsa_free(pool_ctx);
 	err_1:
 		destructor_verify_works_struct(ctx, number_slots);
-		return NULL;
+		return err_ml_dsa_alloc_verify_pool(-ret);
 }
 
-// Знищення пулу верифікацій
+// Знищення пулу верифікацій - може приберу другйи параметр і очищення матриці залежатиме від значення вказівника t1 в структурі
 void destructor_verify_pool(struct ml_dsa_verify_ctx *ctx, bool t1)
 {
 	if(!ctx || !ctx->work) { return; }
@@ -364,8 +393,255 @@ void destructor_verify_pool(struct ml_dsa_verify_ctx *ctx, bool t1)
 	
 	ml_dsa_free(ctx);
 }
+
+// Отримання закритого ключ
+int ml_dsa_get_sk(struct ml_dsa_keys *ctx, u8 *buffer, size_t size_buffer)
+{
+	if(!ctx || !ctx->workspace || !buffer) { return err_ml_dsa_get_sk(-ML_DSA_EINVAL); }
+	
+	if(!ctx->s1 || !ctx->s2 || !ctx->t0 || !ctx->workspace->vect_y || !ctx->workspace->vect_w || !ctx->workspace->temp_vector_buffer)
+	{
+		return err_ml_dsa_get_sk(-ML_DSA_EINVAL);
+	}
+	
+	u8 eta;
+	enum ml_dsa_level_l l;
+	enum ml_dsa_level_k k;
+	if(size_buffer == ML_DSA_44_SIZE_SK) { eta = 2; k = ML_DSA_44_K; l = ML_DSA_44_L; }
+	else if(size_buffer == ML_DSA_65_SIZE_SK) { eta = 4; k = ML_DSA_65_K; l = ML_DSA_65_L; }
+	else if(size_buffer == ML_DSA_87_SIZE_SK) { eta = 2; k = ML_DSA_87_K; l = ML_DSA_87_L; }
+	else { return err_ml_dsa_get_sk(-ML_DSA_EINVAL); }
+	
+	if(k != ctx->k || l !=ctx->l) { return err_ml_dsa_get_sk(-ML_DSA_EINVAL); }
+	
+	size_t buffer_counter = 0;
+	memcpy(buffer, ctx->rho, ML_DSA_32_BYTES);
+	buffer_counter += ML_DSA_32_BYTES;
+	
+	memcpy(buffer + buffer_counter, ctx->K, ML_DSA_32_BYTES);
+	buffer_counter += ML_DSA_32_BYTES;
+	
+	memcpy(buffer + buffer_counter, ctx->tr, ML_DSA_64_BYTES);
+	buffer_counter += ML_DSA_64_BYTES;
+	
+	memcpy(ctx->workspace->vect_y, ctx->s1, ML_DSA_N * ctx->l * sizeof(s32));
+	memcpy(ctx->workspace->vect_w, ctx->s2, ML_DSA_N * ctx->k * sizeof(s32));
+	memcpy(ctx->workspace->temp_vector_buffer, ctx->t0, ML_DSA_N * ctx->k * sizeof(s32));
+	
+	for (size_t i = 0; i < l; i++) 
+	{ 
+		ml_dsa_intt(ctx->workspace->vect_y + i * ML_DSA_N);  
+		for(size_t j = 0; j < ML_DSA_N; j++)
+		{
+			ctx->workspace->vect_y[i * ML_DSA_N + j] = ml_dsa_montgomery_reduce((s64)ctx->workspace->vect_y[i * ML_DSA_N + j]);
+		}
+	}
+	
+	for (size_t i = 0; i < k; i++) 
+	{ 
+		ml_dsa_intt(ctx->workspace->vect_w + i * ML_DSA_N);
+		ml_dsa_intt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); 
+		for(size_t j = 0; j < ML_DSA_N; j++)
+		{
+			ctx->workspace->vect_w[i * ML_DSA_N + j] = ml_dsa_montgomery_reduce((s64)ctx->workspace->vect_w[i * ML_DSA_N + j]);
+			ctx->workspace->temp_vector_buffer[i * ML_DSA_N + j] = ml_dsa_montgomery_reduce((s64)ctx->workspace->temp_vector_buffer[i * ML_DSA_N + j]);
+		}
+	}
+	
+	if(eta == 2)
+	{
+		buffer_counter += pack_s1_and_s2_44_87(ctx->workspace->vect_y, buffer + buffer_counter, (u8)l);
+		buffer_counter += pack_s1_and_s2_44_87(ctx->workspace->vect_w, buffer + buffer_counter, (u8)k);
+	}else
+	{
+		buffer_counter += pack_s1_and_s2_65(ctx->workspace->vect_y, buffer + buffer_counter, (u8)l);
+		buffer_counter += pack_s1_and_s2_65(ctx->workspace->vect_w, buffer + buffer_counter, (u8)k);
+	}
+	
+	buffer_counter += pack_t0(ctx->workspace->temp_vector_buffer, buffer + buffer_counter, (u8)k);
+	
+	ml_dsa_memzero(ctx->workspace->temp_vector_buffer,(2 * k + l) * ML_DSA_N * sizeof(s32));
+		
+	if(buffer_counter != size_buffer) 
+	{ 
+		ml_dsa_memzero(buffer, size_buffer);
+		return err_ml_dsa_get_sk(-ML_DSA_EINVAL); 
+	}
+	
+	return (int)buffer_counter;
+}
+
+// Отримання відкритого ключа
+int ml_dsa_get_pk(struct ml_dsa_keys *ctx, u8 *buffer, size_t size_buffer)
+{
+	if(!ctx || !buffer) { return err_ml_dsa_get_pk(-ML_DSA_EINVAL); }
+	
+	if(ctx->k == ML_DSA_44_K && ctx->l != ML_DSA_44_L) { return err_ml_dsa_get_pk(-ML_DSA_EINVAL); }
+	if(ctx->k == ML_DSA_65_K && ctx->l != ML_DSA_65_L) { return err_ml_dsa_get_pk(-ML_DSA_EINVAL); }
+	if(ctx->k == ML_DSA_87_K && ctx->l != ML_DSA_87_L) { return err_ml_dsa_get_pk(-ML_DSA_EINVAL); }
+	
+	if(ctx->k == ML_DSA_44_K && size_buffer != ML_DSA_44_SIZE_PK) { return err_ml_dsa_get_pk(-ML_DSA_EINVAL); }
+	if(ctx->k == ML_DSA_65_K && size_buffer != ML_DSA_65_SIZE_PK) { return err_ml_dsa_get_pk(-ML_DSA_EINVAL); }
+	if(ctx->k == ML_DSA_87_K && size_buffer != ML_DSA_87_SIZE_PK) { return err_ml_dsa_get_pk(-ML_DSA_EINVAL); }
+	
+	memcpy(buffer, ctx->pk, size_buffer);
+	
+	return (int)size_buffer;
+}
 	
 	
+
+// Створення контексту на основі закритого ключа-повідомлення згідно стандарту 
+struct ml_dsa_keys *ml_dsa_create_keys_object_from_imported_sk(u8 *sk_buffer, size_t size_buffer, u8 level)
+{
+	if(!sk_buffer) { return err_ml_dsa_create_keys_object_from_imported_sk(-ML_DSA_EINVAL); }
+	
+	enum ml_dsa_level_l l;
+	enum ml_dsa_level_k k;
+	if(size_buffer == ML_DSA_32_BYTES && (level == 44 || level == 4))
+	{
+		k = ML_DSA_44_K; 
+		l = ML_DSA_44_L;
+	}else if(size_buffer == ML_DSA_32_BYTES && (level == 65 || level == 6))
+	{
+		k = ML_DSA_65_K; 
+		l = ML_DSA_65_L;
+	}else if(size_buffer == ML_DSA_32_BYTES && (level == 87 || level == 8))
+	{
+		k = ML_DSA_87_K; 
+		l = ML_DSA_87_L;
+	}else if(size_buffer == ML_DSA_44_SIZE_SK && (level == 44 || level == 4))
+	{
+		k = ML_DSA_44_K; 
+		l = ML_DSA_44_L;
+	}else if(size_buffer == ML_DSA_65_SIZE_SK && (level == 65 || level == 6))
+	{
+		k = ML_DSA_65_K; 
+		l = ML_DSA_65_L;
+	}else if(size_buffer == ML_DSA_87_SIZE_SK && (level == 87 || level == 8))
+	{
+		k = ML_DSA_87_K; 
+		l = ML_DSA_87_L;
+	}else { return err_ml_dsa_create_keys_object_from_imported_sk(-ML_DSA_EINVAL); }
+	
+	struct ml_dsa_keys *ctx;
+	ctx = ml_dsa_alloc_struct_keys(k, l);
+	if(!ctx) { return err_ml_dsa_create_keys_object_from_imported_sk(-ML_DSA_ENOMEM); }
+	
+	if(size_buffer == ML_DSA_32_BYTES)
+	{
+		get_ctx_keys_from_seed(sk_buffer, k, l);
+	}else
+	{
+		get_ctx_keys_from_sk(sk_buffer, k, l);
+	}
+	
+	return ctx;
+}
+
+static void get_ctx_keys_from_seed(u8 *sk_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
+{
+}
+
+static void get_ctx_keys_from_sk(u8 *sk_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
+{
+}
+
+
+	
+static inline size_t pack_s1_and_s2_44_87(const s32 *s, u8 *buffer, u8 lng_loops)
+{
+	size_t one_coef_ctr = 0;
+	size_t buffer_ctr = 0;
+	s32 temp;
+	while(one_coef_ctr < ML_DSA_N * lng_loops)
+	{
+		temp = 2 - s[one_coef_ctr];
+		buffer[buffer_ctr] = (u8)temp;
+		one_coef_ctr++;
+		
+		temp = 2 - s[one_coef_ctr];
+		buffer[buffer_ctr] |= (u8)(temp << 3);
+		one_coef_ctr++;
+		
+		temp = 2 - s[one_coef_ctr];
+		buffer[buffer_ctr] |= (u8)(temp << 6);
+		one_coef_ctr++;
+		
+		buffer_ctr++;
+		buffer[buffer_ctr] = (u8)(temp >> 2);
+		
+		temp = 2 - s[one_coef_ctr];
+		buffer[buffer_ctr] |= (u8)(temp << 1);
+		one_coef_ctr++;
+		
+		temp = 2 - s[one_coef_ctr];
+		buffer[buffer_ctr] |= (u8)(temp << 4);
+		one_coef_ctr++;
+		
+		temp = 2 - s[one_coef_ctr];
+		buffer[buffer_ctr] |= (u8)(temp << 7);
+		one_coef_ctr++;
+		
+		buffer_ctr++;
+		buffer[buffer_ctr] = (u8)(temp >> 1);
+		
+		temp = 2 - s[one_coef_ctr];
+		buffer[buffer_ctr] |= (u8)(temp << 2);
+		one_coef_ctr++;
+		
+		temp = 2 - s[one_coef_ctr];
+		buffer[buffer_ctr] |= (u8)(temp << 5);
+		one_coef_ctr++;
+		buffer_ctr++;
+	}
+	
+	return buffer_ctr;
+}
+
+static inline size_t pack_s1_and_s2_65(const s32 *s, u8 *buffer, u8 lng_loops)
+{
+	size_t one_coef_ctr = 0;
+	size_t buffer_ctr = 0;
+	s32 temp;
+	while(one_coef_ctr < ML_DSA_N * lng_loops)
+	{
+		temp = 4 - s[one_coef_ctr];
+		buffer[buffer_ctr] = (u8)temp;
+		one_coef_ctr++;
+		
+		temp = 4 - s[one_coef_ctr];
+		buffer[buffer_ctr] |= (u8)(temp << 4);
+		one_coef_ctr++;
+		buffer_ctr++;
+	}
+	
+	return buffer_ctr;
+}
+
+static inline size_t pack_t0(const s32 *t0, u8 *buffer, u8 k)
+{
+    size_t buffer_ctr = 0;
+    u32 accumulator = 0;
+    u32 bits = 0;
+
+    for(size_t i = 0; i < ML_DSA_N * k; i++)
+    {
+        u32 value = (u32)(4096 - t0[i]);
+
+        accumulator |= value << bits;
+        bits += 13;
+
+        while(bits >= 8)
+        {
+            buffer[buffer_ctr++] = (u8)accumulator;
+            accumulator >>= 8;
+            bits -= 8;
+        }
+    }
+    return buffer_ctr;
+}
+		
 	
 	
 	

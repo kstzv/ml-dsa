@@ -1,6 +1,9 @@
 
 #include "ml_dsa_core_header.h"
 
+struct ml_dsa_verify_workspace *ml_dsa_alloc_verify_works_struct(enum ml_dsa_level_k k, enum ml_dsa_level_l l, size_t number_slots);
+void destructor_verify_works_struct(struct ml_dsa_verify_workspace *ctx, size_t size_pool);
+
 struct ml_dsa_verify_workspace *ml_dsa_alloc_verify_works_struct(enum ml_dsa_level_k k, enum ml_dsa_level_l l, size_t number_slots)
 {
 	if(number_slots == 0 || number_slots > MAX_NUMBER_SLOTS) { return NULL; }

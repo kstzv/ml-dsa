@@ -239,10 +239,10 @@ int ml_dsa_get_c_prime(struct ml_dsa_verify_workspace *ctx)
 	
 	shake_ctx_zero(ctx->shake);
 	shake_ctx_init(ctx->shake, ctx->mu, size_lambda, first_rate, 136);
-	shake->rate = 136;
+	ctx->shake->rate = 136;
 	shake_absorb(ctx->shake);
-	shake->in = ctx->scratch_buffer + (136 - ML_DSA_64_BYTES);
-	shake->inlen = size_w1_bytes - (136 - ML_DSA_64_BYTES);
+	ctx->shake->in = ctx->scratch_buffer + (136 - ML_DSA_64_BYTES);
+	ctx->shake->inlen = size_w1_bytes - (136 - ML_DSA_64_BYTES);
 	shake256(ctx->shake);
 	
 	for(u8 i = 0; i < size_lambda; i++)

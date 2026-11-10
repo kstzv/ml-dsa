@@ -24,10 +24,18 @@ int get_rho_double_prime(struct ml_dsa_keys *ctx, u8 deterministic, ml_dsa_entro
 	if (deterministic == 1) { ml_dsa_memzero(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES); }
 	else if(entropy == NULL)
 	{
-		if (ml_dsa_entropy(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES) != 0) { return ML_DSA_SYSTEM_ENTROPY_FAILED; }
+		if (ml_dsa_entropy(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES) != 0) 
+		{ 
+			ml_dsa_memzero(ctx->workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER);
+			return ML_DSA_SYSTEM_ENTROPY_FAILED; 
+		}
 	}else
 	{
-		if (entropy(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES) != 0) { return ML_DSA_CALLBACK_ENTROPY_FAILED; }
+		if (entropy(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES) != 0) 
+		{ 
+			ml_dsa_memzero(ctx->workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER);
+			return ML_DSA_CALLBACK_ENTROPY_FAILED; 
+		}
 	}
 	
 	// Copy finish 64 mu bytes
@@ -390,7 +398,7 @@ void ml_dsa_wipper_sign_struct(struct ml_dsa_workspace *workspace, enum ml_dsa_l
 	
 	if(workspace->scratch_buffer) { ml_dsa_memzero(workspace->scratch_buffer, ML_DSA_SIZE_SCRATCH_BUFFER); } 
 	
-	if(workspace->shake) { shake_ctx_zero(ctx->workspace->shake); }
+	if(workspace->shake) { shake_ctx_zero(workspace->shake); }
 }
 
 

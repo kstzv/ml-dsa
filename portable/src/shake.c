@@ -1,13 +1,13 @@
 #include "shake.h"
 
-int shake_ctx_get_mem(struct shake_ctx *ctx, uint64_t *state, size_t size_mem)
+int shake_ctx_get_mem(struct shake_ctx *ctx, u64 *state, size_t size_mem)
 {
 	if(!ctx || !state || size_mem != 25) { return -1; }
 	ctx->state = state;
 	return 0;
 }
 
-void shake_ctx_init(struct shake_ctx *ctx,uint8_t *out, size_t outlen, const uint8_t *in, size_t inlen)
+void shake_ctx_init(struct shake_ctx *ctx, u8 *out, size_t outlen, const u8 *in, size_t inlen)
 {
     ctx->rate = 0;
     ctx->pos = 0;
@@ -23,7 +23,7 @@ void shake_ctx_zero(struct shake_ctx *ctx)
 {
     if (ctx == NULL || ctx->state == NULL) { return; }
 
-    volatile uint8_t *p = (volatile uint8_t *)ctx->state;
+    volatile u8 *p = (volatile u8 *)ctx->state;
     size_t len = 200;
     while (len--) { *p++ = 0; }
     ctx->in = NULL;
@@ -72,7 +72,7 @@ void shake256(struct shake_ctx *ctx)
 
 void shake_absorb(struct shake_ctx *ctx)
 {
-    uint8_t *s = (uint8_t *)ctx->state;
+    u8 *s = (u8 *)ctx->state;
 
     while (ctx->inlen > 0)
     {
@@ -96,7 +96,7 @@ void shake_absorb(struct shake_ctx *ctx)
 
 void shake_finalize(struct shake_ctx *ctx)
 {
-    uint8_t *s = (uint8_t *)ctx->state;
+    u8 *s = (u8 *)ctx->state;
 
     s[ctx->pos] ^= 0x1F;
     s[ctx->rate - 1] ^= 0x80;
@@ -106,10 +106,10 @@ void shake_finalize(struct shake_ctx *ctx)
 
 void shake_squeeze(struct shake_ctx *ctx)
 {
-    uint8_t *s = (uint8_t *)ctx->state;
+    u8 *s = (u8 *)ctx->state;
     
     size_t local_outlen = ctx->outlen;
-    uint8_t *local_ptr_out = ctx->out;
+    u8 *local_ptr_out = ctx->out;
 
     while (local_outlen > 0)
     {
