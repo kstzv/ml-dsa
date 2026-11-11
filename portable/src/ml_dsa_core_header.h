@@ -185,7 +185,6 @@ struct ml_dsa_keys {
 	s32 *s2;
 	
 	s32 *t0;
-	s32 *t1;
 	
 	struct ml_dsa_workspace *workspace; // Data processing structure
 };

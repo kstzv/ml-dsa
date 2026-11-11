@@ -35,10 +35,9 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	if(!ctx->s1) { goto err_3; }
 	ctx->s2 = ctx->s1 + l * ML_DSA_N;
 	
-	// Allocation for fields t0 and t1
-	ctx->t0 = ml_dsa_alloc(2 * k * ML_DSA_N * sizeof(s32));
+	// Allocation for fields t0
+	ctx->t0 = ml_dsa_alloc(k * ML_DSA_N * sizeof(s32));
 	if(!ctx->t0) { goto err_4; }
-	ctx->t1 = ctx->t0 + k * ML_DSA_N;
 	
 	ctx->workspace = ml_dsa_alloc(sizeof(struct ml_dsa_workspace));
 	if(!ctx->workspace) { goto err_5; }
@@ -220,12 +219,12 @@ int get_rho_K_s1_s2(struct ml_dsa_keys *ctx, ml_dsa_entropy_fn entropy, bool get
 // (works with secrets or data dependent on a secret)
 int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t)
 {
-	if(!ctx || !t || !ctx->t0 || !ctx->t1) { return ML_DSA_EINVAL; }
+	if(!ctx || !t || !ctx->t0 || !ctx->workspace->vect_w) { return ML_DSA_EINVAL; }
 	
 	for(size_t j = 0; j < ctx->k; j++)
 	{
 		s32 *temp_t0 = ctx->t0 + ML_DSA_N * j;
-		s32 *temp_t1 = ctx->t1 + ML_DSA_N * j;
+		s32 *temp_t1 = ctx->workspace->vect_w + ML_DSA_N * j;
 		s32 *temp_t = t + ML_DSA_N * j;
 		for(size_t i = 0; i < ML_DSA_N; i++)
 		{
@@ -241,14 +240,14 @@ int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t)
 	
 int ml_dsa_create_public_data(struct ml_dsa_keys *ctx)
 {
-    if (!ctx || !ctx->t1) { return ML_DSA_EINVAL; }
+    if (!ctx || !ctx->workspace->vect_w) { return ML_DSA_EINVAL; }
 
     memcpy(ctx->pk, ctx->rho, ML_DSA_32_BYTES);
     u8 *out = ctx->pk + ML_DSA_32_BYTES;
 
     for (size_t j = 0; j < ctx->k; j++) 
     {
-        ml_dsa_pack_t1(out, ctx->t1 + j * ML_DSA_N);
+        ml_dsa_pack_t1(out, ctx->workspace->vect_w + j * ML_DSA_N);
         out += 320;
     }
     

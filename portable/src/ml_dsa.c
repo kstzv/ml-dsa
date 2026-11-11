@@ -1,5 +1,28 @@
 #include "ml_dsa_core_header.h"
 
+struct ml_dsa_keys *ml_dsa_create_keys(u8 level, ml_dsa_entropy_fn entropy);
+struct ml_dsa_keys *ml_dsa_create_keys_object_from_imported_sk(u8 *sk_buffer, size_t size_buffer, u8 level);
+void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx);
+
+int ml_dsa_sign(struct ml_dsa_keys *ctx, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, u8 *sig, size_t sig_len, u8 prehash, u8 deterministic, ml_dsa_entropy_fn entropy);
+int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, const u8 *sig, size_t sig_len, u8 prehash);
+
+int ml_dsa_get_pk(struct ml_dsa_keys *ctx, u8 *buffer, size_t size_buffer);
+int ml_dsa_get_sk(struct ml_dsa_keys *ctx, u8 *buffer, size_t size_buffer);
+
+struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(u8 level, size_t number_slots, u8 *pk, size_t size_pk);
+void destructor_verify_pool(struct ml_dsa_verify_ctx *ctx, bool t1);
+
+static inline size_t unpack_t0(s32 *t0, const u8 *buffer, u8 k);
+static inline size_t pack_t0(const s32 *t0, u8 *buffer, u8 k);
+static inline size_t pack_s1_and_s2_65(const s32 *s, u8 *buffer, u8 lng_loops);
+static inline size_t pack_s1_and_s2_44_87(const s32 *s, u8 *buffer, u8 lng_loops);
+static inline size_t unpack_s1_and_s2_65(s32 *s, const u8 *buffer, u8 lng_loops);
+static inline size_t unpack_s1_and_s2_44_87(s32 *s, const u8 *buffer, u8 lng_loops);
+
+static inline int get_ctx_keys_from_seed(struct ml_dsa_keys *ctx);
+static inline int get_ctx_keys_from_sk(struct ml_dsa_keys *ctx, u8 *sk_buffer);
+
 struct ml_dsa_keys *ml_dsa_create_keys(u8 level, ml_dsa_entropy_fn entropy)
 {
 	enum ml_dsa_level_k k;
@@ -26,36 +49,10 @@ struct ml_dsa_keys *ml_dsa_create_keys(u8 level, ml_dsa_entropy_fn entropy)
 	ret = get_rho_K_s1_s2(ctx, entropy, 0, NULL, 0);
 	if(ret != 0) { goto err_2; }
 
-	// Here should be copy s1 before NTT(it is can do in vect_y - temp)
-	for (size_t i = 0; i < l; i++) { ml_dsa_ntt(ctx->s1 + i * ML_DSA_N); }
+	ret = get_ctx_keys_from_seed(ctx);
+	if(ret != 0) {  goto err_2; }
 	
-	mult_matrix(ctx->rho, ctx->s1, ctx->workspace->temp_vector_buffer, ctx->workspace->shake, ctx->workspace->scratch_buffer, k, l);
-	
-	// TODO: слід вирішити домен для s1(мб і не тільки)
-	for (size_t i = 0; i < k; i++) { ml_dsa_intt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
-	
-	for(size_t i = 0; i < k; i++)
-	{
-		for(size_t j = 0; j < ML_DSA_N; j++)
-		{
-			ctx->workspace->temp_vector_buffer[ML_DSA_N * i + j] += ctx->s2[ML_DSA_N * i + j];
-		}
-	}
-	
-	ret = create_t0_t1(ctx, ctx->workspace->temp_vector_buffer);
-	if(ret != 0) { goto err_2; }
-	
-	ret = ml_dsa_create_public_data(ctx);
-	if(ret != 0) { goto err_2; }
-
-	// Here - create functions for format pk messege and sk messege
-	
-	for (size_t i = 0; i < k; i++) 
-	{ 
-		ml_dsa_ntt(ctx->s2 + i * ML_DSA_N);
-		ml_dsa_ntt(ctx->t0 + i * ML_DSA_N); 
-	}
-	ml_dsa_memzero(ctx->workspace->vect_y, l * ML_DSA_N * sizeof(s32));
+	ml_dsa_memzero(ctx->workspace->temp_vector_buffer, (ctx->l + 2 * ctx->k + 1) * ML_DSA_N * sizeof(s32));
 	
 	return ctx;
 		
@@ -78,7 +75,7 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 	
 	if(ctx->t0) 
 	{ 
-		ml_dsa_memzero(ctx->t0, (2 * ctx->k * ML_DSA_N) * sizeof(s32));
+		ml_dsa_memzero(ctx->t0, (ctx->k * ML_DSA_N) * sizeof(s32));
 		ml_dsa_free(ctx->t0);
 	}
 	
@@ -490,7 +487,7 @@ int ml_dsa_get_pk(struct ml_dsa_keys *ctx, u8 *buffer, size_t size_buffer)
 }
 	
 	
-
+//---------------------------------------------------------------------------------------------------------------------------------
 // Створення контексту на основі закритого ключа-повідомлення згідно стандарту 
 struct ml_dsa_keys *ml_dsa_create_keys_object_from_imported_sk(u8 *sk_buffer, size_t size_buffer, u8 level)
 {
@@ -498,6 +495,7 @@ struct ml_dsa_keys *ml_dsa_create_keys_object_from_imported_sk(u8 *sk_buffer, si
 	
 	enum ml_dsa_level_l l;
 	enum ml_dsa_level_k k;
+	int ret;
 	if(size_buffer == ML_DSA_32_BYTES && (level == 44 || level == 4))
 	{
 		k = ML_DSA_44_K; 
@@ -530,24 +528,218 @@ struct ml_dsa_keys *ml_dsa_create_keys_object_from_imported_sk(u8 *sk_buffer, si
 	
 	if(size_buffer == ML_DSA_32_BYTES)
 	{
-		get_ctx_keys_from_seed(sk_buffer, k, l);
+		ret = get_rho_K_s1_s2(ctx, NULL, 1, sk_buffer, ML_DSA_32_BYTES);
+		if(ret != 0) { goto err; }
+		ret = get_ctx_keys_from_seed(ctx);
+		if(ret != 0) { goto err; }
 	}else
 	{
-		get_ctx_keys_from_sk(sk_buffer, k, l);
+		ret = get_ctx_keys_from_sk(ctx, sk_buffer);
+		if(ret != 0) { goto err; }
 	}
 	
+	ml_dsa_memzero(ctx->workspace->temp_vector_buffer, (ctx->l + 2 * ctx->k + 1) * ML_DSA_N * sizeof(s32));
+	
 	return ctx;
+	
+	err:
+		ml_dsa_destroy_struct_keys(ctx);
+		return err_ml_dsa_create_keys_object_from_imported_sk(-ret);
 }
 
-static void get_ctx_keys_from_seed(u8 *sk_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static inline int get_ctx_keys_from_sk(struct ml_dsa_keys *ctx, u8 *sk_buffer)
 {
+	if(!ctx || !ctx->workspace || !sk_buffer) { return ML_DSA_EINVAL; }
+	if(!ctx->s1 || !ctx->s2 || !ctx->t0 || !ctx->workspace) { return ML_DSA_EINVAL; }
+	if(!ctx->workspace->temp_vector_buffer || !ctx->workspace->vect_w || !ctx->workspace->vect_y 
+		|| !ctx->workspace->poly_c || !ctx->workspace->scratch_buffer || !ctx->workspace->shake) { return ML_DSA_EINVAL; }
+	
+	if(ctx->k == ML_DSA_44_K && ctx->l != ML_DSA_44_L) { return ML_DSA_EINVAL; }
+	if(ctx->k == ML_DSA_65_K && ctx->l != ML_DSA_65_L) { return ML_DSA_EINVAL; }
+	if(ctx->k == ML_DSA_87_K && ctx->l != ML_DSA_87_L) { return ML_DSA_EINVAL; }
+	if(ctx->k != ML_DSA_44_K && ctx->k != ML_DSA_65_K && ctx->k != ML_DSA_87_K) { return ML_DSA_EINVAL; }
+	
+	size_t buffer_counter = 0;
+	
+	memcpy(ctx->rho, sk_buffer, ML_DSA_32_BYTES);
+	buffer_counter += ML_DSA_32_BYTES;
+	
+	memcpy(ctx->K, sk_buffer + buffer_counter, ML_DSA_32_BYTES);
+	buffer_counter += ML_DSA_32_BYTES;
+	
+	memcpy(ctx->tr, sk_buffer + buffer_counter, ML_DSA_64_BYTES);
+	buffer_counter += ML_DSA_64_BYTES;
+	
+	// The magic value 128 and 96 it is number bytes for one coefficient in bytes stream
+	size_t temp_val = 0;
+	if(ctx->k == ML_DSA_44_K || ctx->k == ML_DSA_87_K)
+	{
+		temp_val = unpack_s1_and_s2_44_87(ctx->s1, sk_buffer + buffer_counter, ctx->l);
+		if(temp_val != 96 * ctx->l) { return ML_DSA_EINVAL; }
+		else { buffer_counter += temp_val; }
+		
+		temp_val = unpack_s1_and_s2_44_87(ctx->s2, sk_buffer + buffer_counter, ctx->k);
+		if(temp_val != 96 * ctx->k) { return ML_DSA_EINVAL; }
+		else { buffer_counter += temp_val; }
+	}else
+	{
+		temp_val = unpack_s1_and_s2_65(ctx->s1, sk_buffer + buffer_counter, ctx->l);
+		if(temp_val != 128 * ctx->l) { return ML_DSA_EINVAL; }
+		else { buffer_counter += temp_val; }
+		
+		temp_val = unpack_s1_and_s2_65(ctx->s2, sk_buffer + buffer_counter, ctx->k);
+		if(temp_val != 128 * ctx->k) { return ML_DSA_EINVAL; }
+		else { buffer_counter += temp_val; }
+	}
+	
+	buffer_counter += unpack_t0(ctx->t0, sk_buffer + buffer_counter, ctx->k);
+	
+	if(ctx->k == ML_DSA_44_K) { if(buffer_counter != ML_DSA_44_SIZE_SK) { return ML_DSA_EINVAL; } }
+	else if(ctx->k == ML_DSA_65_K) { if(buffer_counter != ML_DSA_65_SIZE_SK) { return ML_DSA_EINVAL; } }
+	else if(ctx->k == ML_DSA_87_K) { if(buffer_counter != ML_DSA_87_SIZE_SK) { return ML_DSA_EINVAL; } }
+	else { return ML_DSA_EINVAL; }
+	
+	// Копіювання перших поліномів в vect_y та останнтього(якщо не 44 рівень) в поліном poly_c - з метою збереження розпакованого t0
+	for (size_t i = 0; i < ctx->k; i++)  { ml_dsa_ntt(ctx->t0 + i * ML_DSA_N); }
+	memcpy(ctx->workspace->vect_y, ctx->t0, ctx->l * ML_DSA_N * sizeof(s32));
+	if(ctx->k != ML_DSA_44_K)
+	{
+		memcpy(ctx->workspace->poly_c, ctx->t0 + ctx->l * ML_DSA_N, ML_DSA_N * sizeof(s32));
+	}
+	
+	if(get_ctx_keys_from_seed(ctx)) { return ML_DSA_EINVAL; }
+	
+	bool val = 1;
+	size_t i = 0;
+	while(i < ML_DSA_N * ctx->l)
+	{
+		val &= ctx->workspace->vect_y[i] == ctx->t0[i];
+		i++;
+	}
+	
+	if(ctx->k != ML_DSA_44_K)
+	{
+		while(i < ML_DSA_N * ctx->k)
+		{
+			val &= ctx->workspace->poly_c[i - ctx->l * ML_DSA_N] == ctx->t0[i];
+			i++;
+		}
+	}
+	
+	u8 *temp_tr = sk_buffer + ML_DSA_64_BYTES;
+	for(size_t i = 0; i < ML_DSA_64_BYTES; i++) { val &= ctx->tr[i] == temp_tr[i]; }
+	
+	if(!val) { return ML_DSA_EINVAL; }
+	
+	return 0;
 }
 
-static void get_ctx_keys_from_sk(u8 *sk_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
+static inline int get_ctx_keys_from_seed(struct ml_dsa_keys *ctx)
 {
+	if(!ctx) { return ML_DSA_EINVAL; }
+	int ret = 0;
+	
+	// Here should be copy s1 before NTT(it is can do in vect_y - temp)
+	for (size_t i = 0; i < ctx->l; i++) { ml_dsa_ntt(ctx->s1 + i * ML_DSA_N); }
+	
+	mult_matrix(ctx->rho, ctx->s1, ctx->workspace->temp_vector_buffer, ctx->workspace->shake, ctx->workspace->scratch_buffer, ctx->k, ctx->l);
+	
+	for (size_t i = 0; i < ctx->k; i++) { ml_dsa_intt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
+	
+	for(size_t i = 0; i < ctx->k; i++)
+	{
+		for(size_t j = 0; j < ML_DSA_N; j++)
+		{
+			ctx->workspace->temp_vector_buffer[ML_DSA_N * i + j] += ctx->s2[ML_DSA_N * i + j];
+		}
+	}
+	
+	ret = create_t0_t1(ctx, ctx->workspace->temp_vector_buffer);
+	if(ret != 0) { return ret; }
+	
+	ret = ml_dsa_create_public_data(ctx);
+	if(ret != 0) { return ret; }
+
+	// Here - create functions for format pk messege and sk messege
+	
+	for (size_t i = 0; i < ctx->k; i++) 
+	{ 
+		ml_dsa_ntt(ctx->s2 + i * ML_DSA_N);
+		ml_dsa_ntt(ctx->t0 + i * ML_DSA_N); 
+	}
+	
+	return 0;
 }
 
+//---------------------------------------------------------------------------------------------------------------------------------
 
+static inline size_t unpack_s1_and_s2_44_87(s32 *s, const u8 *buffer, u8 lng_loops)
+{
+	size_t one_coef_ctr = 0;
+	size_t buffer_ctr = 0;
+	bool invalid = 1;
+	while(one_coef_ctr < ML_DSA_N * lng_loops)
+	{
+		s[one_coef_ctr] = 2 - ((s32)(buffer[buffer_ctr] & 0x7));
+		invalid &= s[one_coef_ctr] <= 2 && s[one_coef_ctr] >= -2;
+		one_coef_ctr++;
+		
+		s[one_coef_ctr] = 2 - ((s32)((buffer[buffer_ctr] >> 3) & 0x7));
+		invalid &= s[one_coef_ctr] <= 2 && s[one_coef_ctr] >= -2;
+		one_coef_ctr++;
+		
+		s[one_coef_ctr] = 2 - ((s32)((buffer[buffer_ctr] >> 6) & 0x3) | ((buffer[buffer_ctr+1] & 0x1) << 2));
+		invalid &= s[one_coef_ctr] <= 2 && s[one_coef_ctr] >= -2;
+		one_coef_ctr++;
+		buffer_ctr++;
+		
+		s[one_coef_ctr] = 2 - ((s32)((buffer[buffer_ctr] >> 1) & 0x7));
+		invalid &= s[one_coef_ctr] <= 2 && s[one_coef_ctr] >= -2;
+		one_coef_ctr++;
+		
+		s[one_coef_ctr] = 2 - ((s32)((buffer[buffer_ctr] >> 4) & 0x7));
+		invalid &= s[one_coef_ctr] <= 2 && s[one_coef_ctr] >= -2;
+		one_coef_ctr++;
+		
+		s[one_coef_ctr] = 2 - ((s32)((buffer[buffer_ctr] >> 7) & 0x1) | ((buffer[buffer_ctr+1] & 0x3) << 1));
+		invalid &= s[one_coef_ctr] <= 2 && s[one_coef_ctr] >= -2;
+		one_coef_ctr++;
+		buffer_ctr++;
+		
+		s[one_coef_ctr] = 2 - ((s32)((buffer[buffer_ctr] >> 2) & 0x7));
+		invalid &= s[one_coef_ctr] <= 2 && s[one_coef_ctr] >= -2;
+		one_coef_ctr++;
+		
+		s[one_coef_ctr] = 2 - ((s32)((buffer[buffer_ctr] >> 5) & 0x7));
+		invalid &= s[one_coef_ctr] <= 2 && s[one_coef_ctr] >= -2;
+		one_coef_ctr++;
+		buffer_ctr++;
+	}
+	
+	return buffer_ctr * (size_t)invalid;
+}
+		
+static inline size_t unpack_s1_and_s2_65(s32 *s, const u8 *buffer, u8 lng_loops)
+{
+	size_t one_coef_ctr = 0;
+	size_t buffer_ctr = 0;
+	bool invalid = 1;
+	while(one_coef_ctr < ML_DSA_N * lng_loops)
+	{
+		s[one_coef_ctr] = 4 - (s32)(buffer[buffer_ctr] & 0xF);
+		invalid &= s[one_coef_ctr] <= 4 && s[one_coef_ctr] >= -4;
+		one_coef_ctr++;
+		
+		s[one_coef_ctr] = 4 - (s32)(buffer[buffer_ctr] >> 4);
+		invalid &= s[one_coef_ctr] <= 4 && s[one_coef_ctr] >= -4;
+		one_coef_ctr++;
+		buffer_ctr++;
+	}
+	
+	return buffer_ctr * (size_t)invalid;
+}		
 	
 static inline size_t pack_s1_and_s2_44_87(const s32 *s, u8 *buffer, u8 lng_loops)
 {
@@ -619,6 +811,8 @@ static inline size_t pack_s1_and_s2_65(const s32 *s, u8 *buffer, u8 lng_loops)
 	return buffer_ctr;
 }
 
+//==========================================================================================================================================================
+
 static inline size_t pack_t0(const s32 *t0, u8 *buffer, u8 k)
 {
     size_t buffer_ctr = 0;
@@ -639,6 +833,30 @@ static inline size_t pack_t0(const s32 *t0, u8 *buffer, u8 k)
             bits -= 8;
         }
     }
+    
+    return buffer_ctr;
+}
+
+static inline size_t unpack_t0(s32 *t0, const u8 *buffer, u8 k)
+{
+    size_t buffer_ctr = 0;
+    u32 accumulator = 0;
+    u32 bits = 0;
+
+    for(size_t i = 0; i < ML_DSA_N * (size_t)k; i++)
+    {
+        while(bits < 13)
+        {
+            accumulator |= (u32)buffer[buffer_ctr++] << bits;
+            bits += 8;
+        }
+
+        t0[i] = 4096 - (s32)(accumulator & 0x1FFFU);
+
+        accumulator >>= 13;
+        bits -= 13;
+    }
+
     return buffer_ctr;
 }
 		
