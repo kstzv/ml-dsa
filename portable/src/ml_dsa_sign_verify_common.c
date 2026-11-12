@@ -104,6 +104,7 @@ void ml_dsa_get_poly_c(s32 *poly_c, u8 *c, struct shake_ctx *shake, enum ml_dsa_
 	if(k == ML_DSA_44_K) { tau = 39; size_c = 32; }
 	else if(k == ML_DSA_65_K) { tau = 49; size_c = 48; }
 	else if(k == ML_DSA_87_K) { tau = 60; size_c = 64; }
+	else { return; }
 
 	// 136 - size of rate in shake256
 	u8 temp_buff[136];

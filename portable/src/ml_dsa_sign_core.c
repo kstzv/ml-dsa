@@ -67,7 +67,7 @@ void ml_dsa_expand_mask(struct ml_dsa_keys *ctx, u32 kappa)
 		gamma1 = ML_DSA_65_87_GAMMA1;
 		coefficient_bits = ML_DSA_65_87_GAMMA1_BITS;
 		shake_outlen = ML_DSA_65_87_POLYZ_PACKED_BYTES;
-	}
+	}else { return; }
 	
 	u8 *buffer = ctx->workspace->scratch_buffer;
 	for (u32 r = 0; r < (u32)ctx->l; ++r)
@@ -236,7 +236,7 @@ bool ml_dsa_get_r0(struct ml_dsa_keys *ctx)
 	{
 		gamma = ML_DSA_65_87_GAMMA2;
 		beta = ML_DSA_87_BETA;
-	}
+	}else { return 1; }
 	
 	for(size_t i = 0; i < ctx->k; i++)
 	{
@@ -299,7 +299,7 @@ bool ml_dsa_get_h(struct ml_dsa_keys *ctx, u8 *out)
 	{
 		gamma2 = ML_DSA_65_87_GAMMA2;
 		omega = ML_DSA_OMEGA_87;
-	}
+	}else { return 1; }
 	
 	ml_dsa_memzero(out, (size_t)omega + ctx->k);
 	

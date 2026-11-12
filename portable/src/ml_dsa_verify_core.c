@@ -3,7 +3,7 @@
 
 int ml_dsa_unpack_c_z(struct ml_dsa_verify_workspace *ctx, const u8 *sig_msg);
 void ml_dsa_unpack_pk(s32 * t1, const u8 *pk_msg, enum ml_dsa_level_k k);
-int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, u8 *sign);
+int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, const u8 *sign);
 int ml_dsa_pack_w1(struct ml_dsa_verify_workspace *ctx);
 int ml_dsa_get_c_prime(struct ml_dsa_verify_workspace *ctx);
 
@@ -140,13 +140,13 @@ void ml_dsa_unpack_pk(s32 * t1, const u8 *pk_msg, enum ml_dsa_level_k k)
     }
 }
 
-int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, u8 *sign)
+int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, const u8 *sign)
 {
 	if(!ctx || !sign) { return -ML_DSA_EINVAL; }
 	
 	u8 omega;
-	u8 *ptr_h;
-	u8 *k;
+	const u8 *ptr_h;
+	const u8 *k;
 	if(ctx->k == ML_DSA_44_K) 
 	{ 
 		omega = ML_DSA_OMEGA_44; 

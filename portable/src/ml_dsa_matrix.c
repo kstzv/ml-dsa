@@ -5,12 +5,12 @@
 // Multiply matrix A by a vector in the NTT domain
 // The result buffer must be zero-initialized by the caller
 
-void mult_matrix(u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
+void mult_matrix(const u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 
 // Stream matrix A from rho and multiply entries immediately
 // No full matrix is materialized in memory
 // (works with secrets or data dependent on a secret)
-void mult_matrix(u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
+void mult_matrix(const u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l)
 {
 	ml_dsa_memzero(result, k * ML_DSA_N * sizeof(s32));
 	

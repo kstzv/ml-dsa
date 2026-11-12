@@ -131,7 +131,7 @@ extern void ml_dsa_memzero(void *ptr, size_t len);
 extern int ml_dsa_entropy(void *buf, size_t len);
 
 // error handling
-struct ml_dsa_keys *err_create_keys(const u16 err);
+struct ml_dsa_keys *err_create_keys(const int err);
 int err_ml_dsa_sign(const int err);
 int err_ml_dsa_verify(const int err);
 struct ml_dsa_verify_ctx *err_ml_dsa_alloc_verify_pool(const int err);
@@ -235,7 +235,7 @@ extern int ml_dsa_create_public_data(struct ml_dsa_keys *ctx);
 extern void get_full_matrix(u8 *rho, enum ml_dsa_level_k k, enum ml_dsa_level_l l, struct shake_ctx *shake, s32 *matrix_buffer, u8 *scratch_buffer);
 extern int mult_full_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 #endif
-extern void mult_matrix(u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
+extern void mult_matrix(const u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 
 
 // from ml_dsa_sign_verify_common.c module
@@ -255,7 +255,7 @@ extern void ml_dsa_wipper_sign_struct(struct ml_dsa_workspace *workspace, enum m
 // from ml_dsa_verify_core.c module
 extern int ml_dsa_unpack_c_z(struct ml_dsa_verify_workspace *ctx, const u8 *sig_msg);
 extern void ml_dsa_unpack_pk(s32 * t1, const u8 *pk_msg, enum ml_dsa_level_k k);
-extern int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, u8 *sign);
+extern int ml_dsa_unpack_h(struct ml_dsa_verify_workspace *ctx, const u8 *sign);
 extern int ml_dsa_pack_w1(struct ml_dsa_verify_workspace *ctx);
 extern int ml_dsa_get_c_prime(struct ml_dsa_verify_workspace *ctx);
 

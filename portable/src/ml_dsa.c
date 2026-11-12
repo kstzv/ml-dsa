@@ -11,7 +11,7 @@ int ml_dsa_get_pk(struct ml_dsa_keys *ctx, u8 *buffer, size_t size_buffer);
 int ml_dsa_get_sk(struct ml_dsa_keys *ctx, u8 *buffer, size_t size_buffer);
 
 struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(u8 level, size_t number_slots, u8 *pk, size_t size_pk);
-void destructor_verify_pool(struct ml_dsa_verify_ctx *ctx, bool t1);
+void destructor_verify_pool(struct ml_dsa_verify_ctx *ctx);
 
 static inline size_t unpack_t0(s32 *t0, const u8 *buffer, u8 k);
 static inline size_t pack_t0(const s32 *t0, u8 *buffer, u8 k);
@@ -180,22 +180,36 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const u8 *msg, size_t msg_len, const u8
 
 int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, const u8 *msg, size_t msg_len, const u8 *context, size_t context_len, const u8 *sig, size_t sig_len, u8 prehash)
 {
-	if(!pk || (!msg && msg_len) || (!context && context_len) || !sig || context_len > ML_DSA_SIZE_MAX_CONTEXT || prehash > 1) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
+	if((!msg && msg_len) || (!context && context_len) || !sig || context_len > ML_DSA_SIZE_MAX_CONTEXT || prehash > 1) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
+	
+	if(sig_len != ML_DSA_44_SIZE_SIG && sig_len != ML_DSA_65_SIZE_SIG && sig_len != ML_DSA_87_SIZE_SIG) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
 	
 	enum ml_dsa_level_k k;
 	enum ml_dsa_level_l l;
-	if(pk_len == ML_DSA_44_SIZE_PK && sig_len == ML_DSA_44_SIZE_SIG)
+	if((!ctx && pk && pk_len != 0) || (ctx && !ctx->fixed_pk && pk && pk_len !=0))
 	{
-		k = ML_DSA_44_K;
-		l = ML_DSA_44_L;
-	}else if(pk_len == ML_DSA_65_SIZE_PK && sig_len == ML_DSA_65_SIZE_SIG)
+		if(pk_len == ML_DSA_44_SIZE_PK && sig_len == ML_DSA_44_SIZE_SIG)
+		{
+			k = ML_DSA_44_K;
+			l = ML_DSA_44_L;
+		}else if(pk_len == ML_DSA_65_SIZE_PK && sig_len == ML_DSA_65_SIZE_SIG)
+		{
+			k = ML_DSA_65_K;
+			l = ML_DSA_65_L;
+		}else if(pk_len == ML_DSA_87_SIZE_PK && sig_len == ML_DSA_87_SIZE_SIG)
+		{
+			k = ML_DSA_87_K;
+			l = ML_DSA_87_L;
+		}else { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
+	}else if(ctx && ctx->fixed_pk && ctx->work && !pk && pk_len == 0)
 	{
-		k = ML_DSA_65_K;
-		l = ML_DSA_65_L;
-	}else if(pk_len == ML_DSA_87_SIZE_PK && sig_len == ML_DSA_87_SIZE_SIG)
-	{
-		k = ML_DSA_87_K;
-		l = ML_DSA_87_L;
+		k = ctx->work->k;
+		l = ctx->work->l;
+		
+		if(sig_len == ML_DSA_44_SIZE_SIG && (k != ML_DSA_44_K || l != ML_DSA_44_L)) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
+		if(sig_len == ML_DSA_65_SIZE_SIG && (k != ML_DSA_65_K || l != ML_DSA_65_L)) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
+		if(sig_len == ML_DSA_87_SIZE_SIG && (k != ML_DSA_87_K || l != ML_DSA_87_L)) { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
+		
 	}else { return err_ml_dsa_verify(-ML_DSA_EINVAL); }
 	
 	// Validate verification pool
@@ -242,20 +256,24 @@ int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, co
 	get_mu(inside_ctx->shake, inside_ctx->mu, inside_ctx->tr, msg, msg_len, context, context_len, prehash);
 	
 	#if ML_DSA_FULL_MATRIX_BUFFER
-	
-	if(!fixed_pk) 
+
+	if(fixed_pk)
 	{
-		mult_matrix(ctx->matrix_buffer, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->k, inside_ctx->l);
+		ret = mult_full_matrix(ctx->matrix_buffer, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->k, inside_ctx->l);
+		if(ret != 0) { goto err; }
 	}else
 	{
-		ret = mult_full_matrix(pk, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l);
-		if(ret != 0) { goto err; }
+		mult_matrix((u8 *)pk, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l);
 	}
-	
+
 	#else
 	
-	mult_matrix(pk, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l);
-	
+	const u8 *matrix_seed;
+	if(fixed_pk) { matrix_seed = inside_ctx->rho; } 
+	else { matrix_seed = pk; }
+
+	mult_matrix(matrix_seed, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l);
+
 	#endif
 	
 	ml_dsa_get_poly_c(inside_ctx->poly_c, inside_ctx->c_tilde, inside_ctx->shake, inside_ctx->k);
@@ -380,13 +398,16 @@ struct ml_dsa_verify_ctx *ml_dsa_alloc_verify_pool(u8 level, size_t number_slots
 }
 
 // Знищення пулу верифікацій - може приберу другйи параметр і очищення матриці залежатиме від значення вказівника t1 в структурі
-void destructor_verify_pool(struct ml_dsa_verify_ctx *ctx, bool t1)
+void destructor_verify_pool(struct ml_dsa_verify_ctx *ctx)
 {
-	if(!ctx || !ctx->work) { return; }
+	if(!ctx) { return; }
 	
-	destructor_verify_works_struct(ctx->work, ctx->size_pool);
+	if(ctx->work)
+	{
+		destructor_verify_works_struct(ctx->work, ctx->size_pool);
+	}
 	
-	if(t1 && ctx->t1) { ml_dsa_free(ctx->t1); }
+	if(ctx->t1) { ml_dsa_free(ctx->t1); }
 	
 	ml_dsa_free(ctx);
 }
