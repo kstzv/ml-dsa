@@ -86,6 +86,11 @@
 #error "No ML-DSA port selected."
 #endif // HEADERS
 
+#if defined(TEST)
+extern u8 test_rnd[ML_DSA_32_BYTES];
+#endif
+
+
 // for SIMD-frendly
 #ifndef ML_DSA_SIMD
 #error "ML_DSA_SIMD must be defined"

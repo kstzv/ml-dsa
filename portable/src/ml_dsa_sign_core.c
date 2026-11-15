@@ -20,6 +20,14 @@ int get_rho_double_prime(struct ml_dsa_keys *ctx, u8 deterministic, ml_dsa_entro
 	// Copy K in first 32 bytes
 	memcpy(ctx->workspace->scratch_buffer, ctx->K, ML_DSA_32_BYTES);
 	
+	#if defined(TEST)
+	
+	memcpy(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, test_rnd, ML_DSA_32_BYTES);
+	(void)deterministic; 
+	(void)entropy; 
+	
+	#else
+	
 	// Get next 32 zeroies or random bytes
 	if (deterministic == 1) { ml_dsa_memzero(ctx->workspace->scratch_buffer + ML_DSA_32_BYTES, ML_DSA_32_BYTES); }
 	else if(entropy == NULL)
@@ -37,6 +45,8 @@ int get_rho_double_prime(struct ml_dsa_keys *ctx, u8 deterministic, ml_dsa_entro
 			return ML_DSA_CALLBACK_ENTROPY_FAILED; 
 		}
 	}
+	
+	#endif
 	
 	// Copy finish 64 mu bytes
 	memcpy(ctx->workspace->scratch_buffer + ML_DSA_64_BYTES, ctx->workspace->mu, ML_DSA_64_BYTES);
