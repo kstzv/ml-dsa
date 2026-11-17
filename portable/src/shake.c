@@ -1,5 +1,7 @@
 #include "shake.h"
 
+void sha_finalize(struct shake_ctx *ctx);
+
 int shake_ctx_get_mem(struct shake_ctx *ctx, u64 *state, size_t size_mem)
 {
 	if(!ctx || !state || size_mem != 25) { return -1; }
@@ -70,6 +72,86 @@ void shake256(struct shake_ctx *ctx)
     shake_squeeze(ctx);
 }
 
+void sha3_224(struct shake_ctx *ctx)
+{
+    ctx->rate = 144;
+
+    if (ctx->pos != 0) 
+    {
+        shake_squeeze(ctx);
+        return;
+    }
+    
+    ctx->outlen = 28;
+
+    shake_absorb(ctx);
+    sha_finalize(ctx);
+
+    ctx->pos = 0;
+
+    shake_squeeze(ctx);
+}
+
+void sha3_256(struct shake_ctx *ctx)
+{
+    ctx->rate = 136;
+
+    if (ctx->pos != 0) 
+    {
+        shake_squeeze(ctx);
+        return;
+    }
+    
+    ctx->outlen = 32;
+
+    shake_absorb(ctx);
+    sha_finalize(ctx);
+
+    ctx->pos = 0;
+
+    shake_squeeze(ctx);
+}
+
+void sha3_384(struct shake_ctx *ctx)
+{
+    ctx->rate = 104;
+
+    if (ctx->pos != 0) 
+    {
+        shake_squeeze(ctx);
+        return;
+    }
+    
+    ctx->outlen = 48;
+
+    shake_absorb(ctx);
+    sha_finalize(ctx);
+
+    ctx->pos = 0;
+
+    shake_squeeze(ctx);
+}
+
+void sha3_512(struct shake_ctx *ctx)
+{
+    ctx->rate = 72;
+
+    if (ctx->pos != 0) 
+    {
+        shake_squeeze(ctx);
+        return;
+    }
+    
+    ctx->outlen = 64;
+
+    shake_absorb(ctx);
+    sha_finalize(ctx);
+
+    ctx->pos = 0;
+
+    shake_squeeze(ctx);
+}
+
 void shake_absorb(struct shake_ctx *ctx)
 {
     u8 *s = (u8 *)ctx->state;
@@ -99,6 +181,16 @@ void shake_finalize(struct shake_ctx *ctx)
     u8 *s = (u8 *)ctx->state;
 
     s[ctx->pos] ^= 0x1F;
+    s[ctx->rate - 1] ^= 0x80;
+
+    keccak_f1600(ctx->state);
+}
+
+void sha_finalize(struct shake_ctx *ctx)
+{
+    u8 *s = (u8 *)ctx->state;
+
+    s[ctx->pos] ^= 0x06;
     s[ctx->rate - 1] ^= 0x80;
 
     keccak_f1600(ctx->state);

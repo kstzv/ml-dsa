@@ -97,11 +97,20 @@ int main()
             // const char *mu = json_string_value(json_object_get(test, "mu"));
             const char *rnd = json_string_value(json_object_get(test, "rnd"));
             
-            bool prehash;
-            if(hashAlg && !(strstr(hashAlg, "SHAKE-256"))) { continue; }
-            
-            if(!hashAlg) { prehash = 0; }
-            else { prehash = 1; }
+            u8 prehash;
+            if(hashAlg && strstr(hashAlg, "SHA2-512")) { continue; }
+            else if(hashAlg && strstr(hashAlg, "SHA2-512/224")) { continue; }
+            else if(hashAlg && strstr(hashAlg, "SHA2-256")) { continue; }
+            else if(hashAlg && strstr(hashAlg, "SHA2-224")) { continue; }
+            else if(hashAlg && strstr(hashAlg, "SHA2-512/256")) { continue; }
+            else if(hashAlg && strstr(hashAlg, "SHA2-384")) { continue; } 
+			else if(hashAlg && strstr(hashAlg, "SHAKE-128")) { prehash = 1; }
+            else if(hashAlg && strstr(hashAlg, "SHAKE-256")) { prehash = 2; }
+            else if(hashAlg && strstr(hashAlg, "SHA3-224")) { prehash = 3; }
+            else if(hashAlg && strstr(hashAlg, "SHA3-256")) { prehash = 4; }
+            else if(hashAlg && strstr(hashAlg, "SHA3-384")) { prehash = 5; }
+            else if(hashAlg && strstr(hashAlg, "SHA3-512")) { prehash = 6; }
+            else { prehash = 0; }
 
             // Очікуваний результат
             const char *signature = json_string_value(json_object_get(expected_test, "signature"));

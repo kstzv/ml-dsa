@@ -20,6 +20,10 @@ void shake_ctx_init(struct shake_ctx *ctx, u8 *out, size_t outlen, const u8 *in,
 void shake_ctx_zero(struct shake_ctx *ctx);
 void shake128(struct shake_ctx *ctx);
 void shake256(struct shake_ctx *ctx);
+void sha3_224(struct shake_ctx *ctx);
+void sha3_256(struct shake_ctx *ctx);
+void sha3_384(struct shake_ctx *ctx);
+void sha3_512(struct shake_ctx *ctx);
 
 void shake_absorb(struct shake_ctx *ctx);
 void shake_finalize(struct shake_ctx *ctx);

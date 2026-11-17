@@ -53,7 +53,7 @@
 
 #define ML_DSA_SIZE_SCRATCH_BUFFER 1088
 #define ML_DSA_SIZE_MAX_CONTEXT    255
-#define ML_DSA_PREHASH_OID_SIZE    11
+#define ML_DSA_PREHASH_OID_SIZE    10 // Перші 10 байт, останній змінний
 
 // Error code for ML-DSA
 #define ML_DSA_EINVAL                  22
@@ -114,10 +114,17 @@ extern u8 test_rnd[ML_DSA_32_BYTES];
 #error "You need to specify 1, 2, or 4 for SIMD"
 #endif
 
-static const u8 oid_shake256[11] = {
-    0x06, 0x09, 0x60, 0x86, 0x48, 0x01,
-    0x65, 0x03, 0x04, 0x02, 0x0C
-};
+// Перші 10 байт, останній змінний
+static const u8 oid_hash_base[10] = { 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02 };
+
+// Code for prehash
+// 0 - nothing
+// 1 - SHAKE128
+// 2 - SHAKE256
+// 3 - SHA3-224
+// 4 - SHA3-256
+// 5 - SHA3-384
+// 6 - SHA3-512
 
 // Callback used to obtain cryptographically secure random bytes.
 // Parameters:

@@ -13,7 +13,7 @@ void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const u8 *msg, size_t msg_l
 	
 	// copy hash pk, bytes prehash and size of contest
 	memcpy(first_rate, tr, ML_DSA_64_BYTES); 
-	first_rate[ML_DSA_64_BYTES] = prehash;        
+	first_rate[ML_DSA_64_BYTES] = (bool)prehash;        
 	first_rate[ML_DSA_64_BYTES + 1] = (u8)context_len;
 	
 	// copy context
@@ -21,19 +21,45 @@ void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const u8 *msg, size_t msg_l
 	if(context_len) { memcpy(first_rate + counter_ptr, context, context_len); }
 	counter_ptr += context_len;
 	
-	if(prehash == 1)
+	if(prehash != 0)
 	{
+		u8 last_byte;
+		size_t hash_len;
+
 		shake_ctx_zero(shake);
-		shake_ctx_init(shake, mu, ML_DSA_64_BYTES, msg, msg_len);
-		shake256(shake);
-		memcpy(first_rate + counter_ptr, oid_shake256, ML_DSA_PREHASH_OID_SIZE);
-		counter_ptr += ML_DSA_PREHASH_OID_SIZE;
-		memcpy(first_rate + counter_ptr, mu, ML_DSA_64_BYTES);
-		counter_ptr += ML_DSA_64_BYTES;
 		
+		if(prehash == 1) { last_byte = 0x0B; hash_len = 32; } 
+		else if(prehash == 2) { last_byte = 0x0C; hash_len = 64; }
+		else if(prehash == 3) { last_byte = 0x07; hash_len = 28; }
+		else if(prehash == 4) { last_byte = 0x08; hash_len = 32; }
+		else if(prehash == 5) { last_byte = 0x09; hash_len = 48; }
+		else if(prehash == 6) { last_byte = 0x0A; hash_len = 64; }
+		else { goto exit; } // Все перевірено до, тому тут функція void, вона внутрішня, це щоб компілятор попередженнями не смердів
+
+		shake_ctx_init(shake, mu, hash_len, msg, msg_len);
+
+		switch(prehash)
+		{
+			case 1: shake128(shake); break;
+			case 2: shake256(shake); break;
+			case 3: sha3_224(shake); break;
+			case 4: sha3_256(shake); break;
+			case 5: sha3_384(shake); break;
+			case 6: sha3_512(shake); break;
+		}
+
+		memcpy(first_rate + counter_ptr, oid_hash_base, ML_DSA_PREHASH_OID_SIZE);
+		counter_ptr += ML_DSA_PREHASH_OID_SIZE;
+		first_rate[counter_ptr++] = last_byte;
+
+		memcpy(first_rate + counter_ptr, mu, hash_len);
+		counter_ptr += hash_len;
+
 		shake_ctx_zero(shake);
-		shake_ctx_init(shake, mu, ML_DSA_64_BYTES, first_rate, counter_ptr);
+		shake_ctx_init(shake, mu, ML_DSA_64_BYTES,
+                   first_rate, counter_ptr);
 		shake256(shake);
+		
 		goto exit;
 	}
 	
