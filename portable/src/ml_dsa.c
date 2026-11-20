@@ -124,7 +124,7 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const u8 *msg, size_t msg_len, const u8
 	else if(ctx->k == ML_DSA_65_K && sig_len < ML_DSA_65_SIZE_SIG) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
 	else if(ctx->k == ML_DSA_87_K && sig_len < ML_DSA_87_SIZE_SIG) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
 	else if(deterministic > 1) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
-	else if(prehash > 6) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
+	else if(prehash > 8) { return err_ml_dsa_sign(-ML_DSA_EINVAL); }
 	
 	int ret = 0;
 	

@@ -100,8 +100,8 @@ int main()
             u8 prehash;
             if(hashAlg && strstr(hashAlg, "SHA2-512")) { continue; }
             else if(hashAlg && strstr(hashAlg, "SHA2-512/224")) { continue; }
-            else if(hashAlg && strstr(hashAlg, "SHA2-256")) { continue; }
-            else if(hashAlg && strstr(hashAlg, "SHA2-224")) { continue; }
+            // else if(hashAlg && strstr(hashAlg, "SHA2-256")) { continue; }
+            // else if(hashAlg && strstr(hashAlg, "SHA2-224")) { continue; }
             else if(hashAlg && strstr(hashAlg, "SHA2-512/256")) { continue; }
             else if(hashAlg && strstr(hashAlg, "SHA2-384")) { continue; } 
 			else if(hashAlg && strstr(hashAlg, "SHAKE-128")) { prehash = 1; }
@@ -110,6 +110,8 @@ int main()
             else if(hashAlg && strstr(hashAlg, "SHA3-256")) { prehash = 4; }
             else if(hashAlg && strstr(hashAlg, "SHA3-384")) { prehash = 5; }
             else if(hashAlg && strstr(hashAlg, "SHA3-512")) { prehash = 6; }
+            else if(hashAlg && strstr(hashAlg, "SHA2-224")) { prehash = 7; }
+            else if(hashAlg && strstr(hashAlg, "SHA2-256")) { prehash = 8; }
             else { prehash = 0; }
 
             // Очікуваний результат

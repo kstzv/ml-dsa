@@ -34,9 +34,15 @@ void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const u8 *msg, size_t msg_l
 		else if(prehash == 4) { last_byte = 0x08; hash_len = 32; }
 		else if(prehash == 5) { last_byte = 0x09; hash_len = 48; }
 		else if(prehash == 6) { last_byte = 0x0A; hash_len = 64; }
+		else if(prehash == 7) { last_byte = 0x04; hash_len = 28; }
+		else if(prehash == 8) { last_byte = 0x01; hash_len = 32; }
 		else { goto exit; } // Все перевірено до, тому тут функція void, вона внутрішня, це щоб компілятор попередженнями не смердів
 
 		shake_ctx_init(shake, mu, hash_len, msg, msg_len);
+		
+		#if defined(SHA2_32)
+		struct sha2_32_ctx sha2_ctx;
+		#endif
 
 		switch(prehash)
 		{
@@ -46,6 +52,10 @@ void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const u8 *msg, size_t msg_l
 			case 4: sha3_256(shake); break;
 			case 5: sha3_384(shake); break;
 			case 6: sha3_512(shake); break;
+			#if defined(SHA2_32)
+			case 7: sha224(&sha2_ctx, msg, msg_len, mu); break;
+			case 8: sha256(&sha2_ctx, msg, msg_len, mu); break;
+			#endif
 		}
 
 		memcpy(first_rate + counter_ptr, oid_hash_base, ML_DSA_PREHASH_OID_SIZE);
@@ -56,9 +66,12 @@ void get_mu(struct shake_ctx *shake, u8 *mu, u8 *tr, const u8 *msg, size_t msg_l
 		counter_ptr += hash_len;
 
 		shake_ctx_zero(shake);
-		shake_ctx_init(shake, mu, ML_DSA_64_BYTES,
-                   first_rate, counter_ptr);
+		shake_ctx_init(shake, mu, ML_DSA_64_BYTES, first_rate, counter_ptr);
 		shake256(shake);
+		
+		#if defined(SHA2_32)
+		ml_dsa_memzero(&sha2_ctx, sizeof(struct sha2_32_ctx));
+		#endif
 		
 		goto exit;
 	}
