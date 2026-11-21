@@ -100,6 +100,12 @@ extern u8 test_rnd[ML_DSA_32_BYTES];
 
 #endif
 
+#if defined(SHA2_64)
+
+#include "sha2_64.h"
+
+#endif
+
 
 // for SIMD-frendly
 #ifndef ML_DSA_SIMD
@@ -137,6 +143,10 @@ static const u8 oid_hash_base[10] = { 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 
 // 6 - SHA3-512
 // 7 - SHA2-224
 // 8 - SHA2-256
+// 9 - SHA2-384
+// 10 - SHA2-512
+// 11 - SHA2-512-224
+// 12 - SHA2-512-256
 
 // Callback used to obtain cryptographically secure random bytes.
 // Parameters:
