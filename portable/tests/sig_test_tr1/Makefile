@@ -8,6 +8,7 @@ CFLAGS = -O3 -Wall -Wextra -std=c11 -ljansson \
           -I../../sha2_32_core \
           -I../../ports/userspace \
           -DML_DSA_FULL_MATRIX_BUFFER=0 \
+          -DML_DSA_FULL_MATRIX_BUFFER_SIGN=0 \
           -DML_DSA_SIMD=1 \
           -DSHA2_32=1
 

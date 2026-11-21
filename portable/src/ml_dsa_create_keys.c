@@ -47,11 +47,17 @@ struct ml_dsa_keys *ml_dsa_alloc_struct_keys(enum ml_dsa_level_k k, enum ml_dsa_
 	size_s32 += k * ML_DSA_N * sizeof(s32); 		  // For w vector
 	size_s32 += l * ML_DSA_N * sizeof(s32); 		  // For y vector
 	size_s32 += ML_DSA_N * sizeof(s32); 		  	  // For c poly
+	#if ML_DSA_FULL_MATRIX_BUFFER_SIGN
+	size_s32 += k * l * ML_DSA_N * sizeof(s32);       // For full matrix
+	#endif
 	ctx->workspace->temp_vector_buffer = ml_dsa_alloc(size_s32);
 	if(!ctx->workspace->temp_vector_buffer) { goto err_6; }
 	ctx->workspace->vect_w = ctx->workspace->temp_vector_buffer + (k * ML_DSA_N);
 	ctx->workspace->vect_y = ctx->workspace->vect_w + (k * ML_DSA_N);
 	ctx->workspace->poly_c = ctx->workspace->vect_y + (l * ML_DSA_N);
+	#if ML_DSA_FULL_MATRIX_BUFFER_SIGN
+	ctx->workspace->full_matrix_buffer_sing = ctx->workspace->poly_c + ML_DSA_N;
+	#endif
 	ml_dsa_memzero(ctx->workspace->temp_vector_buffer, size_s32);
 	
 	// For temp u8 buffer

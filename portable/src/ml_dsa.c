@@ -86,7 +86,8 @@ void ml_dsa_destroy_struct_keys(struct ml_dsa_keys *ctx)
 		size_t size_s32 = ctx->k * ML_DSA_N * sizeof(s32); 		  
 		size_s32 += ctx->k * ML_DSA_N * sizeof(s32); 		 
 		size_s32 += ctx->l * ML_DSA_N * sizeof(s32); 		 
-		size_s32 += ML_DSA_N * sizeof(s32); 		
+		size_s32 += ML_DSA_N * sizeof(s32);
+		// A buffer for the full matrix is ​​not encrypted, in principle, since the matrix is ​​not a secret 		
 		ml_dsa_memzero(ctx->workspace->temp_vector_buffer, size_s32);
 		ml_dsa_free(ctx->workspace->temp_vector_buffer);
 	}
@@ -147,7 +148,13 @@ int ml_dsa_sign(struct ml_dsa_keys *ctx, const u8 *msg, size_t msg_len, const u8
 		
 		// Get vectors w and w1
 		for(size_t i = 0; i < ctx->l; i++) { ml_dsa_ntt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
-		mult_matrix(ctx->rho, ctx->workspace->temp_vector_buffer, ctx->workspace->vect_w, ctx->workspace->shake, ctx->workspace->scratch_buffer, ctx->k, ctx->l);
+		#if ML_DSA_FULL_MATRIX_BUFFER_SIGN
+		ret = mult_matrix(NULL, ctx->workspace->temp_vector_buffer, ctx->workspace->vect_w, NULL, NULL, ctx->k, ctx->l, ctx->workspace->full_matrix_buffer_sing);
+		if(ret != 0) {  return err_ml_dsa_sign(-ret); }
+		#elif ML_DSA_FULL_MATRIX_BUFFER_SIGN == 0
+		ret = mult_matrix(ctx->rho, ctx->workspace->temp_vector_buffer, ctx->workspace->vect_w, ctx->workspace->shake, ctx->workspace->scratch_buffer, ctx->k, ctx->l, NULL);
+		if(ret != 0) { return err_ml_dsa_sign(-ret); }
+		#endif
 		for(size_t i = 0; i < ctx->k; i++) { ml_dsa_intt(ctx->workspace->vect_w + i * ML_DSA_N); }
 		for(size_t i = 0; i < ctx->k; i++) { ml_dsa_canonicalize(ctx->workspace->vect_w + i * ML_DSA_N); }
 		ml_dsa_get_w1(ctx->workspace->vect_w, ctx->workspace->temp_vector_buffer, NULL, ctx->k);
@@ -259,11 +266,12 @@ int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, co
 
 	if(fixed_pk)
 	{
-		ret = mult_full_matrix(ctx->matrix_buffer, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->k, inside_ctx->l);
+		ret = mult_matrix(NULL, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, NULL, NULL, inside_ctx->k, inside_ctx->l, ctx->matrix_buffer);
 		if(ret != 0) { goto err; }
 	}else
 	{
-		mult_matrix((u8 *)pk, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l);
+		ret = mult_matrix((u8 *)pk, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l, NULL);
+		if(ret != 0) { goto err; }
 	}
 
 	#else
@@ -272,7 +280,8 @@ int ml_dsa_verify(struct ml_dsa_verify_ctx *ctx, const u8 *pk, size_t pk_len, co
 	if(fixed_pk) { matrix_seed = inside_ctx->rho; } 
 	else { matrix_seed = pk; }
 
-	mult_matrix(matrix_seed, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l);
+	ret = mult_matrix(matrix_seed, inside_ctx->temp_vector_1, inside_ctx->temp_vector_2, inside_ctx->shake, inside_ctx->scratch_buffer, inside_ctx->k, inside_ctx->l, NULL);
+	if(ret != 0) { goto err; }
 
 	#endif
 	
@@ -665,7 +674,13 @@ static inline int get_ctx_keys_from_seed(struct ml_dsa_keys *ctx)
 	// Here should be copy s1 before NTT(it is can do in vect_y - temp)
 	for (size_t i = 0; i < ctx->l; i++) { ml_dsa_ntt(ctx->s1 + i * ML_DSA_N); }
 	
-	mult_matrix(ctx->rho, ctx->s1, ctx->workspace->temp_vector_buffer, ctx->workspace->shake, ctx->workspace->scratch_buffer, ctx->k, ctx->l);
+	#if ML_DSA_FULL_MATRIX_BUFFER_SIGN
+	ret = mult_matrix(ctx->rho, ctx->s1, ctx->workspace->temp_vector_buffer, ctx->workspace->shake, ctx->workspace->scratch_buffer, ctx->k, ctx->l, ctx->workspace->full_matrix_buffer_sing);
+	if(ret != 0) { return ret; }
+	#elif ML_DSA_FULL_MATRIX_BUFFER_SIGN == 0
+	ret = mult_matrix(ctx->rho, ctx->s1, ctx->workspace->temp_vector_buffer, ctx->workspace->shake, ctx->workspace->scratch_buffer, ctx->k, ctx->l, NULL);
+	if(ret != 0) { return ret; }
+	#endif
 	
 	for (size_t i = 0; i < ctx->k; i++) { ml_dsa_intt(ctx->workspace->temp_vector_buffer + i * ML_DSA_N); }
 	

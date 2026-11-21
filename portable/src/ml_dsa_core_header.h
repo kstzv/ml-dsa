@@ -69,6 +69,10 @@
 #define ML_DSA_FULL_MATRIX_BUFFER 0
 #endif
 
+#ifndef ML_DSA_FULL_MATRIX_BUFFER_SIGN
+#define ML_DSA_FULL_MATRIX_BUFFER_SIGN 0
+#endif
+
 // HEADERS
 #if defined(USERSPACE)
 
@@ -182,6 +186,9 @@ struct ml_dsa_workspace {
 	s32 *vect_w;
 	s32 *vect_y;
 	s32 *poly_c;
+	#if ML_DSA_FULL_MATRIX_BUFFER_SIGN
+	s32 *full_matrix_buffer_sing;
+	#endif
 	u8 deterministic;
 	u8 rho_double_prime[ML_DSA_64_BYTES];
 	u8 mu[ML_DSA_64_BYTES];
@@ -251,11 +258,8 @@ extern int create_t0_t1(struct ml_dsa_keys *ctx, s32 *t);
 extern int ml_dsa_create_public_data(struct ml_dsa_keys *ctx);
 
 // Internal function from matrix module
-#if ML_DSA_FULL_MATRIX_BUFFER
+extern int mult_matrix(const u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l, s32 *full_matrix_buffer);
 extern void get_full_matrix(u8 *rho, enum ml_dsa_level_k k, enum ml_dsa_level_l l, struct shake_ctx *shake, s32 *matrix_buffer, u8 *scratch_buffer);
-extern int mult_full_matrix(s32 *matrix_buffer, s32 *vect, s32 *result, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
-#endif
-extern void mult_matrix(const u8 *seed_matrix, s32 *vect, s32 *result, struct shake_ctx *shake, u8 *scratch_buffer, enum ml_dsa_level_k k, enum ml_dsa_level_l l);
 
 
 // from ml_dsa_sign_verify_common.c module
